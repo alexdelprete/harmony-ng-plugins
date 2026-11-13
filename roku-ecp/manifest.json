@@ -24,7 +24,11 @@
       { "name": "Play", "keyCode": "PLUGIN:roku-ecp:Play" },
       { "name": "Rev", "keyCode": "PLUGIN:roku-ecp:Rev" },
       { "name": "Fwd", "keyCode": "PLUGIN:roku-ecp:Fwd" },
-      { "name": "PowerOff", "keyCode": "PLUGIN:roku-ecp:PowerOff" }
+      { "name": "VolumeUp", "keyCode": "PLUGIN:roku-ecp:VolumeUp" },
+      { "name": "VolumeDown", "keyCode": "PLUGIN:roku-ecp:VolumeDown" },
+      { "name": "VolumeMute", "keyCode": "PLUGIN:roku-ecp:VolumeMute" },
+      { "name": "PowerOff", "keyCode": "PLUGIN:roku-ecp:PowerOff" },
+      { "name": "PowerOn", "keyCode": "PLUGIN:roku-ecp:PowerOn" }
     ]
   }
 }
