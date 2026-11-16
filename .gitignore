@@ -31,3 +31,6 @@ build/*.json
 core/
 bin/
 *.tar.gz
+
+!*/bin/
+!*/bin/*
