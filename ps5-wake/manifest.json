@@ -15,13 +15,34 @@
     "device_type": "ps5",
     "display_name": "PlayStation 5 (BT Wake)",
     "config_fields": [
-      { "key": "host_mac", "label": "PS5 Bluetooth MAC Address", "type": "string", "placeholder": "AA:BB:CC:DD:EE:FF" },
-      { "key": "controller_mac", "label": "Controller MAC to Spoof (Optional)", "type": "string", "placeholder": "11:22:33:44:55:66" },
-      { "key": "host_ip", "label": "Console IP (Optional for UDP Wake)", "type": "string", "placeholder": "192.168.1.100" }
+      {
+        "key": "host_mac",
+        "label": "PS5 Bluetooth MAC Address",
+        "type": "string",
+        "placeholder": "AA:BB:CC:DD:EE:FF"
+      },
+      {
+        "key": "controller_mac",
+        "label": "Controller MAC to Spoof",
+        "type": "string",
+        "placeholder": "11:22:33:44:55:66"
+      },
+      {
+        "key": "host_ip",
+        "label": "Console IP (Optional for UDP Wake)",
+        "type": "string",
+        "placeholder": "192.168.1.100"
+      }
     ],
     "default_commands": [
-      { "name": "PowerOn", "keyCode": "PLUGIN:ps5-wake:Wake" },
-      { "name": "Wake", "keyCode": "PLUGIN:ps5-wake:Wake" }
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:ps5-wake:Wake"
+      },
+      {
+        "name": "Wake",
+        "keyCode": "PLUGIN:ps5-wake:Wake"
+      }
     ]
   }
 }

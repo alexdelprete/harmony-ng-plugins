@@ -4,7 +4,7 @@ Native C daemon for waking Sony PlayStation 5 and PlayStation 4 consoles from Re
 
 ## Features
 - **Bluetooth HCI Wake**: Emulates an official Sony controller connection request to wake the console wirelessly.
-- **Controller BD_ADDR Spoofing**: Optional spoofing of a paired controller's Bluetooth MAC address for instant wake acceptance.
+- **Controller BD_ADDR Spoofing**: Spoofing of a paired controller's Bluetooth MAC address for instant wake acceptance.
 - **UDP Broadcast Fallback**: Optional Sony remote-play wake packet transmission over local network.
 
 ## Attribution
@@ -44,7 +44,7 @@ The extraction tool is completely self-contained with **zero dependencies** (no 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `host_mac` | String | **Yes** | Bluetooth MAC address of your PlayStation console (format: `AA:BB:CC:DD:EE:FF`). |
-| `controller_mac` | String | Optional | Bluetooth MAC address of your paired DualSense/DualShock controller. Required if your console requires authenticated controller spoofing. |
+| `controller_mac` | String | **Yes** | Bluetooth MAC address of your paired DualSense/DualShock controller.
 | `host_ip` | String | Optional | Console local IP address for secondary UDP wake broadcast. |
 
 ## Available Commands

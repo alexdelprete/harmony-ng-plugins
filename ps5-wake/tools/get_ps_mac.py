@@ -333,7 +333,7 @@ def main():
             print("    - Paired Host MAC (host_mac)      : Not paired yet")
         print("-" * 64)
 
-    print("\nCopy 'host_mac' (and optional 'controller_mac') into Harmony-NG device settings.")
+    print("\nCopy 'host_mac' and 'controller_mac' into Harmony-NG device settings.")
 
 
 if __name__ == "__main__":
