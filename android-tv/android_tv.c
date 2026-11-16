@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ctype.h>
+#include <stdarg.h>
+#include <time.h>
+#include <pthread.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -380,6 +383,10 @@ typedef struct {
     br_x509_decoder_context dec;
     br_x509_pkey pkey;
     int first_cert;
+    uint8_t rsa_n[512];
+    size_t rsa_nlen;
+    uint8_t rsa_e[16];
+    size_t rsa_elen;
 } permissive_x509_context;
 
 static void px509_start_chain(const br_x509_class **ctx, const char *server_name) {
@@ -408,7 +415,19 @@ static void px509_end_cert(const br_x509_class **ctx) {
     if (pc->first_cert) {
         if (br_x509_decoder_last_error(&pc->dec) == 0) {
             const br_x509_pkey *pk = br_x509_decoder_get_pkey(&pc->dec);
-            if (pk) pc->pkey = *pk;
+            if (pk) {
+                pc->pkey = *pk;
+                if (pk->key_type == BR_KEYTYPE_RSA) {
+                    if (pk->key.rsa.n && pk->key.rsa.nlen > 0 && pk->key.rsa.nlen <= sizeof(pc->rsa_n)) {
+                        memcpy(pc->rsa_n, pk->key.rsa.n, pk->key.rsa.nlen);
+                        pc->rsa_nlen = pk->key.rsa.nlen;
+                    }
+                    if (pk->key.rsa.e && pk->key.rsa.elen > 0 && pk->key.rsa.elen <= sizeof(pc->rsa_e)) {
+                        memcpy(pc->rsa_e, pk->key.rsa.e, pk->key.rsa.elen);
+                        pc->rsa_elen = pk->key.rsa.elen;
+                    }
+                }
+            }
         }
         pc->first_cert = 0;
     }
@@ -621,6 +640,401 @@ static void save_state(const char *host, int paired) {
     }
 }
 
+/* =========================================================================
+ * POLO Pairing Protocol Implementation
+ * Wire format matches Google TV / Android TV Remote Protocol v2
+ * ========================================================================= */
+
+typedef struct {
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    int active;
+    int have_pin;
+    int stop;
+    char host[64];
+    int port;
+    char pin[32];
+    pthread_t tid;
+} pairing_session_t;
+
+static pairing_session_t s_pair = {
+    .lock = PTHREAD_MUTEX_INITIALIZER,
+    .cond = PTHREAD_COND_INITIALIZER,
+    .active = 0,
+    .have_pin = 0,
+    .stop = 0
+};
+
+static void write_status_file(const char *action, const char *stage, const char *msg, int ok, int paired, const char *host, int port) {
+    mkdir("/tmp/plugins", 0755);
+    FILE *f = fopen("/tmp/plugins/android-tv.status", "w");
+    if (!f) return;
+    fprintf(f, "{\n"
+               "  \"ok\": %s,\n"
+               "  \"action\": \"%s\",\n"
+               "  \"stage\": \"%s\",\n"
+               "  \"message\": \"%s\",\n"
+               "  \"paired\": %s,\n"
+               "  \"host\": \"%s\",\n"
+               "  \"port\": %d\n"
+               "}\n",
+               ok ? "true" : "false",
+               action ? action : "",
+               stage ? stage : "",
+               msg ? msg : "",
+               paired ? "true" : "false",
+               host ? host : "",
+               port);
+    fclose(f);
+}
+
+static const uint8_t *strip_leading_zero(const uint8_t *data, size_t *len) {
+    while (*len > 1 && *data == 0x00) {
+        data++;
+        (*len)--;
+    }
+    return data;
+}
+
+static int hex_nibble(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static int read_polo_msg(br_sslio_context *ioc, unsigned char *out, size_t out_max) {
+    uint64_t msg_len = 0;
+    int shift = 0;
+    for (;;) {
+        unsigned char b;
+        if (br_sslio_read_all(ioc, &b, 1) != 0) return -1;
+        msg_len |= (uint64_t)(b & 0x7F) << shift;
+        if ((b & 0x80) == 0) break;
+        shift += 7;
+        if (shift > 35) return -1;
+    }
+    if (msg_len == 0 || msg_len > out_max) return -1;
+    if (br_sslio_read_all(ioc, out, (size_t)msg_len) != 0) return -1;
+    return (int)msg_len;
+}
+
+static int is_polo_status_ok(const unsigned char *buf, size_t len) {
+    if (len < 5) return 0;
+    for (size_t i = 0; i + 2 < len; i++) {
+        if (buf[i] == 0x10 && buf[i+1] == 0xC8 && buf[i+2] == 0x01) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* 1. PairingRequest: service="atvremote", client="Harmony Hub" */
+static const uint8_t s_polo_pairing_request[] = {
+    0x1f,
+    0x08, 0x02,
+    0x10, 0xc8, 0x01,
+    0x52, 0x18,
+    0x0a, 0x09, 'a','t','v','r','e','m','o','t','e',
+    0x12, 0x0b, 'H','a','r','m','o','n','y',' ','H','u','b'
+};
+
+/* 2. Options: HEXADECIMAL (type 3), length 6, role INPUT (1) */
+static const uint8_t s_polo_options[] = {
+    0x10,
+    0x08, 0x02,
+    0x10, 0xc8, 0x01,
+    0xa2, 0x01, 0x08,
+    0x0a, 0x04, 0x08, 0x03, 0x10, 0x06,
+    0x18, 0x01
+};
+
+/* 3. Configuration: HEXADECIMAL (type 3), length 6, role INPUT (1) */
+static const uint8_t s_polo_configuration[] = {
+    0x10,
+    0x08, 0x02,
+    0x10, 0xc8, 0x01,
+    0xf2, 0x01, 0x08,
+    0x0a, 0x04, 0x08, 0x03, 0x10, 0x06,
+    0x10, 0x01
+};
+
+static void *pair_worker_thread(void *arg) {
+    (void)arg;
+    char target_host[64];
+    int target_port = 6467;
+
+    pthread_mutex_lock(&s_pair.lock);
+    strncpy(target_host, s_pair.host, sizeof(target_host) - 1);
+    target_host[sizeof(target_host) - 1] = '\0';
+    target_port = s_pair.port > 0 ? s_pair.port : 6467;
+    s_pair.have_pin = 0;
+    pthread_mutex_unlock(&s_pair.lock);
+
+    printf("[*] android-tv: POLO pairing worker connecting to %s:%d...\n", target_host, target_port);
+
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        printf("[-] android-tv: Failed to create socket\n");
+        write_status_file("start", "error", "Failed to create TCP socket", 0, 0, target_host, target_port);
+        pthread_mutex_lock(&s_pair.lock);
+        s_pair.active = 0;
+        pthread_mutex_unlock(&s_pair.lock);
+        return NULL;
+    }
+
+    struct sockaddr_in sin;
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons((uint16_t)target_port);
+    if (inet_pton(AF_INET, target_host, &sin.sin_addr) <= 0) {
+        printf("[-] android-tv: Invalid IP address %s\n", target_host);
+        write_status_file("start", "error", "Invalid IP address", 0, 0, target_host, target_port);
+        close(fd);
+        pthread_mutex_lock(&s_pair.lock);
+        s_pair.active = 0;
+        pthread_mutex_unlock(&s_pair.lock);
+        return NULL;
+    }
+
+    struct timeval tv = { .tv_sec = 8, .tv_usec = 0 };
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+    int one = 1;
+    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+    setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
+
+    if (connect(fd, (struct sockaddr *)&sin, sizeof(sin)) != 0) {
+        printf("[-] android-tv: Failed to connect to %s:%d (errno=%d)\n", target_host, target_port, errno);
+        write_status_file("start", "error", "Failed to connect to device", 0, 0, target_host, target_port);
+        close(fd);
+        pthread_mutex_lock(&s_pair.lock);
+        s_pair.active = 0;
+        pthread_mutex_unlock(&s_pair.lock);
+        return NULL;
+    }
+
+    /* Initialize BearSSL TLS */
+    br_ssl_client_context sc;
+    br_sslio_context ioc;
+    permissive_x509_context px509;
+    memset(&px509, 0, sizeof(px509));
+    px509.vtable = &px509_vtable;
+
+    br_x509_certificate chain[1];
+    chain[0].data = cert_der;
+    chain[0].data_len = cert_der_len;
+
+    br_skey_decoder_context skdc;
+    br_skey_decoder_init(&skdc);
+    br_skey_decoder_push(&skdc, key_der, key_der_len);
+
+    unsigned char iobuf[BR_SSL_BUFSIZE_BIDI];
+    br_x509_minimal_context xc;
+    br_ssl_client_init_full(&sc, &xc, NULL, 0);
+    br_ssl_engine_set_x509(&sc.eng, &px509.vtable);
+    br_ssl_engine_set_buffer(&sc.eng, iobuf, sizeof(iobuf), 1);
+
+    if (br_skey_decoder_last_error(&skdc) == 0 && br_skey_decoder_key_type(&skdc) == BR_KEYTYPE_RSA) {
+        const br_rsa_private_key *sk = br_skey_decoder_get_rsa(&skdc);
+        br_ssl_client_set_single_rsa(&sc, chain, 1, sk, br_rsa_pkcs1_sign_get_default());
+    }
+
+    br_ssl_client_reset(&sc, target_host, 0);
+    br_sslio_init(&ioc, &sc.eng, sock_read, &fd, sock_write, &fd);
+
+    unsigned char msg_buf[1024];
+
+    /* Step 1: Send PairingRequest */
+    printf("[*] android-tv: Sending PairingRequest...\n");
+    if (br_sslio_write_all(&ioc, s_polo_pairing_request, sizeof(s_polo_pairing_request)) != 0 || br_sslio_flush(&ioc) != 0) {
+        printf("[-] android-tv: Failed to write PairingRequest\n");
+        goto fail;
+    }
+
+    /* Step 2: Read PairingRequestAck */
+    int rlen = read_polo_msg(&ioc, msg_buf, sizeof(msg_buf));
+    if (rlen <= 0 || !is_polo_status_ok(msg_buf, (size_t)rlen)) {
+        printf("[-] android-tv: PairingRequestAck failed or bad status (len=%d)\n", rlen);
+        goto fail;
+    }
+
+    /* Step 3: Send Options */
+    printf("[*] android-tv: Sending Options...\n");
+    if (br_sslio_write_all(&ioc, s_polo_options, sizeof(s_polo_options)) != 0 || br_sslio_flush(&ioc) != 0) {
+        printf("[-] android-tv: Failed to write Options\n");
+        goto fail;
+    }
+
+    /* Step 4: Read OptionsAck */
+    rlen = read_polo_msg(&ioc, msg_buf, sizeof(msg_buf));
+    if (rlen <= 0 || !is_polo_status_ok(msg_buf, (size_t)rlen)) {
+        printf("[-] android-tv: OptionsAck failed or bad status (len=%d)\n", rlen);
+        goto fail;
+    }
+
+    /* Step 5: Send Configuration */
+    printf("[*] android-tv: Sending Configuration...\n");
+    if (br_sslio_write_all(&ioc, s_polo_configuration, sizeof(s_polo_configuration)) != 0 || br_sslio_flush(&ioc) != 0) {
+        printf("[-] android-tv: Failed to write Configuration\n");
+        goto fail;
+    }
+
+    /* Step 6: Read ConfigurationAck */
+    rlen = read_polo_msg(&ioc, msg_buf, sizeof(msg_buf));
+    if (rlen <= 0 || !is_polo_status_ok(msg_buf, (size_t)rlen)) {
+        printf("[-] android-tv: ConfigurationAck failed or bad status (len=%d)\n", rlen);
+        goto fail;
+    }
+
+    printf("[+] android-tv: ConfigurationAck received! PIN should now be visible on TV screen.\n");
+    write_status_file("start", "need_pin", "PIN displayed on TV screen", 1, 0, target_host, target_port);
+
+    /* Step 7: Wait for user to input PIN (cond wait up to 60s) */
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += 60;
+
+    pthread_mutex_lock(&s_pair.lock);
+    while (!s_pair.have_pin && !s_pair.stop) {
+        int rc = pthread_cond_timedwait(&s_pair.cond, &s_pair.lock, &ts);
+        if (rc == ETIMEDOUT) break;
+    }
+    if (!s_pair.have_pin || s_pair.stop) {
+        pthread_mutex_unlock(&s_pair.lock);
+        printf("[-] android-tv: Timed out waiting for PIN or canceled\n");
+        write_status_file("start", "error", "Pairing timed out waiting for PIN", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+    char pin_code[32];
+    strncpy(pin_code, s_pair.pin, sizeof(pin_code) - 1);
+    pin_code[sizeof(pin_code) - 1] = '\0';
+    pthread_mutex_unlock(&s_pair.lock);
+
+    /* Trim whitespace from pin */
+    char *p = pin_code;
+    while (*p && isspace((unsigned char)*p)) p++;
+    char clean_pin[32] = {0};
+    size_t cpi = 0;
+    while (*p && !isspace((unsigned char)*p) && cpi < sizeof(clean_pin) - 1) {
+        clean_pin[cpi++] = *p++;
+    }
+    clean_pin[cpi] = '\0';
+
+    if (strlen(clean_pin) != 6) {
+        printf("[-] android-tv: Invalid PIN length %zu (expected 6)\n", strlen(clean_pin));
+        write_status_file("pin", "error", "PIN must be exactly 6 characters", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+
+    for (int i = 0; i < 6; i++) {
+        if (hex_nibble(clean_pin[i]) < 0) {
+            printf("[-] android-tv: Invalid non-hex character in PIN '%s'\n", clean_pin);
+            write_status_file("pin", "error", "PIN must be hexadecimal", 0, 0, target_host, target_port);
+            goto cleanup;
+        }
+    }
+
+    /* Decode client certificate public key */
+    br_x509_decoder_context dec;
+    br_x509_decoder_init(&dec, 0, 0);
+    br_x509_decoder_push(&dec, cert_der, cert_der_len);
+    if (br_x509_decoder_last_error(&dec) != 0) {
+        printf("[-] android-tv: Failed to decode client certificate\n");
+        write_status_file("pin", "error", "Failed to decode client certificate", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+    const br_x509_pkey *cli_pk = br_x509_decoder_get_pkey(&dec);
+    if (!cli_pk || cli_pk->key_type != BR_KEYTYPE_RSA) {
+        printf("[-] android-tv: Client key is not RSA\n");
+        write_status_file("pin", "error", "Client key is not RSA", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+
+    size_t cli_nlen = cli_pk->key.rsa.nlen;
+    const uint8_t *cli_n = strip_leading_zero(cli_pk->key.rsa.n, &cli_nlen);
+    size_t cli_elen = cli_pk->key.rsa.elen;
+    const uint8_t *cli_e = strip_leading_zero(cli_pk->key.rsa.e, &cli_elen);
+
+    size_t srv_nlen = px509.rsa_nlen;
+    const uint8_t *srv_n = strip_leading_zero(px509.rsa_n, &srv_nlen);
+    size_t srv_elen = px509.rsa_elen;
+    const uint8_t *srv_e = strip_leading_zero(px509.rsa_e, &srv_elen);
+
+    if (srv_nlen == 0 || srv_elen == 0) {
+        printf("[-] android-tv: Server certificate RSA key not captured\n");
+        write_status_file("pin", "error", "Server certificate key missing", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+
+    uint8_t pin_bytes[2];
+    pin_bytes[0] = (uint8_t)((hex_nibble(clean_pin[2]) << 4) | hex_nibble(clean_pin[3]));
+    pin_bytes[1] = (uint8_t)((hex_nibble(clean_pin[4]) << 4) | hex_nibble(clean_pin[5]));
+    uint8_t expected_first = (uint8_t)((hex_nibble(clean_pin[0]) << 4) | hex_nibble(clean_pin[1]));
+
+    br_sha256_context hc;
+    br_sha256_init(&hc);
+    br_sha256_update(&hc, cli_n, cli_nlen);
+    br_sha256_update(&hc, cli_e, cli_elen);
+    br_sha256_update(&hc, srv_n, srv_nlen);
+    br_sha256_update(&hc, srv_e, srv_elen);
+    br_sha256_update(&hc, pin_bytes, 2);
+    uint8_t hash[32];
+    br_sha256_out(&hc, hash);
+
+    if (hash[0] != expected_first) {
+        printf("[-] android-tv: Secret hash mismatch: got 0x%02X expected 0x%02X\n", hash[0], expected_first);
+        write_status_file("pin", "error", "Incorrect PIN code entered", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+
+    /* Build SecretMessage (42 bytes) */
+    uint8_t secret_frame[43];
+    secret_frame[0] = 42; /* Length prefix */
+    secret_frame[1] = 0x08; /* protocol_version = 2 */
+    secret_frame[2] = 0x02;
+    secret_frame[3] = 0x10; /* status = 200 */
+    secret_frame[4] = 0xc8;
+    secret_frame[5] = 0x01;
+    secret_frame[6] = 0xc2; /* field 40 (SecretMessage) */
+    secret_frame[7] = 0x02;
+    secret_frame[8] = 0x22; /* len 34 */
+    secret_frame[9] = 0x0a; /* field 1 (secret) */
+    secret_frame[10] = 0x20; /* len 32 */
+    memcpy(&secret_frame[11], hash, 32);
+
+    printf("[*] android-tv: Sending SecretMessage with verified hash...\n");
+    if (br_sslio_write_all(&ioc, secret_frame, sizeof(secret_frame)) != 0 || br_sslio_flush(&ioc) != 0) {
+        printf("[-] android-tv: Failed to write SecretMessage\n");
+        write_status_file("pin", "error", "Failed to transmit secret challenge", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+
+    /* Read SecretAck */
+    rlen = read_polo_msg(&ioc, msg_buf, sizeof(msg_buf));
+    if (rlen <= 0 || !is_polo_status_ok(msg_buf, (size_t)rlen)) {
+        printf("[-] android-tv: SecretAck failed or bad status (len=%d)\n", rlen);
+        write_status_file("pin", "error", "Device rejected PIN or Secret challenge", 0, 0, target_host, target_port);
+        goto cleanup;
+    }
+
+    printf("[+] android-tv: Pairing successful with %s!\n", target_host);
+    save_state(target_host, 1);
+    write_status_file("pin", "done", "Pairing completed successfully", 1, 1, target_host, target_port);
+
+cleanup:
+    br_ssl_engine_close(&sc.eng);
+    close(fd);
+    pthread_mutex_lock(&s_pair.lock);
+    s_pair.active = 0;
+    pthread_mutex_unlock(&s_pair.lock);
+    return NULL;
+
+fail:
+    write_status_file("start", "error", "Failed during pairing handshake with TV", 0, 0, target_host, target_port);
+    goto cleanup;
+}
+
 /* JSON Extraction helpers */
 static void extract_json_str(const char *buf, const char *key, char *out, size_t out_sz) {
     out[0] = '\0';
@@ -708,9 +1122,38 @@ int main(int argc, char **argv) {
         /* Pairing actions */
         if (strcasecmp(raw_cmd, "Pair") == 0 || strcasecmp(action, "start_pair") == 0) {
             if (host[0]) {
-                printf("[*] android-tv: Starting Google TV pairing on %s:6466...\n", host);
-                save_state(host, 1);
+                printf("[*] android-tv: Initiating POLO pairing with %s:%d...\n", host, port);
+                pthread_mutex_lock(&s_pair.lock);
+                if (s_pair.active) {
+                    s_pair.stop = 1;
+                    pthread_cond_broadcast(&s_pair.cond);
+                }
+                strncpy(s_pair.host, host, sizeof(s_pair.host) - 1);
+                s_pair.port = port;
+                s_pair.active = 1;
+                s_pair.have_pin = 0;
+                s_pair.stop = 0;
+                pthread_create(&s_pair.tid, NULL, pair_worker_thread, NULL);
+                pthread_detach(s_pair.tid);
+                pthread_mutex_unlock(&s_pair.lock);
+            } else {
+                write_status_file("start", "error", "Host IP required", 0, 0, "", port);
             }
+            continue;
+        }
+
+        if (strcasecmp(action, "finish_pair") == 0 || strcasecmp(action, "pin") == 0) {
+            printf("[*] android-tv: Received PIN '%s' for pairing...\n", pin);
+            pthread_mutex_lock(&s_pair.lock);
+            if (!s_pair.active) {
+                printf("[-] android-tv: No pairing session active\n");
+                write_status_file("pin", "error", "No pairing session active", 0, 0, host, port);
+            } else {
+                strncpy(s_pair.pin, pin, sizeof(s_pair.pin) - 1);
+                s_pair.have_pin = 1;
+                pthread_cond_signal(&s_pair.cond);
+            }
+            pthread_mutex_unlock(&s_pair.lock);
             continue;
         }
 
