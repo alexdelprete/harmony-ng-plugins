@@ -1,3 +1,13 @@
+﻿/*
+ * PlayStation 5 / PlayStation 4 Bluetooth Wake Daemon for Harmony-NG
+ *
+ * Based on research and reverse engineering from:
+ * - FreeTHX/pywakepsXonbt (https://github.com/FreeTHX/pywakepsXonbt)
+ * - chrippa/pywakeps4onbt (https://github.com/chrippa/pywakeps4onbt)
+ *
+ * Emulates official Sony controller Bluetooth connection requests (HCI Create Connection)
+ * to wake consoles from Rest Mode.
+ */
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -201,3 +211,4 @@ int main(int argc, char **argv) {
     printf("[*] ps5-wake daemon stopped\n");
     return 0;
 }
+
