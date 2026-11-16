@@ -2,14 +2,13 @@
 
 Native C daemon for local network control of Android TV, Google TV, NVIDIA Shield, and Chromecast with Google TV devices via the official **Google TV Remote Protocol v2** (TLS).
 
-Designed for **100% protocol and feature parity** with the [Home Assistant `androidtv_remote` integration](https://github.com/home-assistant/core/tree/dev/homeassistant/components/androidtv_remote) and the [`androidtvremote2`](https://github.com/tronikos/androidtvremote2) protocol engine.
+Designed for **100% protocol and feature parity** with [`androidtvremote2`](https://github.com/tronikos/androidtvremote2) protocol engine.
 
 ---
 
 ## Highlights
 
 - **Zero ADB Dependency**: Connects directly to Google's official Android TV Remote Service on TLS ports `6466` and `6467`. No ADB debugging, no developer options, and no ADB server background processes.
-- **Home Assistant Command Compatibility**: Full support for all Home Assistant `TvKeys` names, direction prefixes (`SHORT:`, `START_LONG:`, `END_LONG:`), text entry (`text:`), and app deep links (`app:`).
 - **Direct Wire Protobufs**: Nanosecond C-level Protocol Buffer packet serialization for immediate tactile response on Harmony remotes.
 - **Embedded BearSSL TLS**: Self-contained TLS 1.2 client engine with pre-generated RSA authentication certificates for fast pairing and seamless execution.
 - **Bi-Directional Pairing**: Interactive pairing flow with on-screen 6-character PIN code exchange.
@@ -38,12 +37,10 @@ Designed for **100% protocol and feature parity** with the [Home Assistant `andr
 
 ---
 
-## Command Syntax & Home Assistant Parity
-
-The plugin supports all command patterns supported by Home Assistant's `remote.send_command` and `media_player.play_media`:
+## Command Syntax
 
 ### 1. Direction Prefixes (Press, Hold, Release)
-Supports explicit direction modifiers matching Home Assistant's `remote.py`:
+Supports explicit direction modifiers:
 - `SHORT:<command>` — Standard momentary key tap (default).
 - `START_LONG:<command>` — Key down / start hold (used for continuous scrolling, fast-forwarding, or turning on TV).
 - `END_LONG:<command>` — Key up / release hold.
@@ -54,8 +51,6 @@ Supports explicit direction modifiers matching Home Assistant's `remote.py`:
 Send text directly into search boxes, text fields, or URL inputs on Android TV without typing letter by letter:
 - `text:Stranger Things`
 - `text:The Matrix`
-
-Behind the scenes, this sends a Google TV `RemoteImeBatchEdit` message (Protobuf field 21), typing the entire string instantly.
 
 ### 3. App Launching & Deep Linking (`app:<link>` or `launch:<link>`)
 Directly launch streaming applications, URLs, or specific app activities:
@@ -73,8 +68,37 @@ Directly launch streaming applications, URLs, or specific app activities:
 | `app:twitch` or `app:tv.twitch.android.app` | Opens Twitch |
 | `app:https://example.com/video` | Opens Web Browser / Deep link |
 
+#### Any Custom Package, URL, or Deep Link
+You are not limited to built-in presets. Any Android package ID, intent URI, or HTTP(S) link is supported:
+- **Any Android app package**: Simply use `app:<package_name>`. The plugin automatically wraps it into `android-app://<package_name>`.
+  - Apple TV+: `app:com.apple.atve.androidtv.appletv`
+  - Max (HBO): `app:com.max.stream`
+  - Hulu: `app:com.hulu.livingroomplus`
+  - Peacock: `app:com.peacocktv.peacockandroid`
+  - BBC iPlayer: `app:uk.co.bbc.iplayer`
+- **Direct web URLs or video deep links**:
+  - `app:https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+  - `app:https://open.spotify.com/album/4LH4d3cOWNNXdsqFd4Bw1s`
+
+#### Adding Custom App Commands to Harmony-NG
+1. Open the Harmony-NG WebUI and navigate to **Devices Studio**.
+2. Select your **Android TV** device.
+3. In the **Saved Commands** section, enter a descriptive Command Name (e.g., `Watch Apple TV+`).
+4. In **Plugin Keycode / Action**, enter:
+   ```
+   PLUGIN:android-tv:app:com.apple.atve.androidtv.appletv
+   ```
+5. Click **Add Command**. The custom app launcher is now saved to the device!
+
+#### Using App Launchers in Harmony Activities
+You can bind any custom app launcher to a Harmony Activity (such as a "Watch Apple TV+" or "Play YouTube" activity):
+1. In the WebUI, go to **Activities** -> edit or create an Activity.
+2. In the **Startup Sequence / Macro**, add your Android TV device.
+3. Select your saved custom app command (e.g. `Watch Apple TV+`).
+4. Whenever you select the Activity on your Harmony Elite remote or the WebUI, the TV powers on, switches inputs, and automatically opens your designated app!
+
+
 ### 4. Sequential Channel Switching (`channel:<digits>`)
-Emulates Home Assistant's `media_player.play_media(media_type="channel", media_id="104")`:
 - `channel:104` — Automatically sends `1`, `0`, `4` keycodes sequentially with a 100ms inter-digit delay.
 
 ---

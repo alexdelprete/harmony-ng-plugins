@@ -29,7 +29,6 @@
       { "key": "port", "label": "Port", "type": "number", "default": 6467 }
     ],
     "default_commands": [
-      { "name": "Pair with TV", "keyCode": "PLUGIN:android-tv:Pair" },
       { "name": "PowerToggle", "keyCode": "PLUGIN:android-tv:PowerToggle" },
       { "name": "PowerOn", "keyCode": "PLUGIN:android-tv:PowerOn" },
       { "name": "PowerOff", "keyCode": "PLUGIN:android-tv:PowerOff" },
