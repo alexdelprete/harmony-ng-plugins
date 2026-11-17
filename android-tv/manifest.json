@@ -35,12 +35,6 @@
         "label": "IP Address",
         "type": "string",
         "placeholder": "192.168.1.60"
-      },
-      {
-        "key": "port",
-        "label": "Port",
-        "type": "number",
-        "default": 6467
       }
     ],
     "default_commands": [
