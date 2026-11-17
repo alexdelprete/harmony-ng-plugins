@@ -507,7 +507,7 @@ typedef struct {
     int connected;
 } ctl_session_t;
 
-static ctl_session_t s_ctl = { .fd = -1, .connected = 0 };
+static ctl_session_t s_ctl;
 
 static void ctl_disconnect(void) {
     if (s_ctl.connected || s_ctl.fd >= 0) {
@@ -517,6 +517,23 @@ static void ctl_disconnect(void) {
         s_ctl.connected = 0;
         s_ctl.host[0] = '\0';
     }
+}
+
+static void init_bearssl_client_trimmed(br_ssl_client_context *cc) {
+    static const uint16_t suites[] = {
+        BR_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+        BR_TLS_RSA_WITH_AES_128_GCM_SHA256
+    };
+    br_ssl_client_zero(cc);
+    br_ssl_engine_set_versions(&cc->eng, BR_TLS12, BR_TLS12);
+    br_ssl_engine_set_suites(&cc->eng, suites, (sizeof suites) / (sizeof suites[0]));
+    br_ssl_client_set_default_rsapub(cc);
+    br_ssl_engine_set_default_rsavrfy(&cc->eng);
+    br_ssl_engine_set_ec(&cc->eng, &br_ec_prime_i31);
+    br_ssl_engine_set_default_aes_gcm(&cc->eng);
+    br_ssl_engine_set_hash(&cc->eng, br_sha1_ID, &br_sha1_vtable);
+    br_ssl_engine_set_hash(&cc->eng, br_sha256_ID, &br_sha256_vtable);
+    br_ssl_engine_set_prf_sha256(&cc->eng, &br_tls12_sha256_prf);
 }
 
 static int ctl_connect(const char *host) {
@@ -582,8 +599,7 @@ static int ctl_connect(const char *host) {
     br_skey_decoder_init(&skdc);
     br_skey_decoder_push(&skdc, key_der, key_der_len);
 
-    br_x509_minimal_context xc;
-    br_ssl_client_init_full(&s_ctl.sc, &xc, NULL, 0);
+    init_bearssl_client_trimmed(&s_ctl.sc);
     br_ssl_engine_set_x509(&s_ctl.sc.eng, &s_ctl.px509.vtable);
     br_ssl_engine_set_buffer(&s_ctl.sc.eng, s_ctl.iobuf, sizeof(s_ctl.iobuf), 1);
 
@@ -861,7 +877,7 @@ typedef struct {
     int active;
 } polo_session_t;
 
-static polo_session_t s_polo = { .fd = -1, .active = 0 };
+static polo_session_t s_polo;
 
 static void polo_close(void) {
     if (s_polo.active || s_polo.fd >= 0) {
@@ -972,8 +988,7 @@ static void do_start_pair(const char *host) {
     br_skey_decoder_init(&skdc);
     br_skey_decoder_push(&skdc, key_der, key_der_len);
 
-    br_x509_minimal_context xc;
-    br_ssl_client_init_full(&s_polo.sc, &xc, NULL, 0);
+    init_bearssl_client_trimmed(&s_polo.sc);
     br_ssl_engine_set_x509(&s_polo.sc.eng, &s_polo.px509.vtable);
     br_ssl_engine_set_buffer(&s_polo.sc.eng, s_polo.iobuf, sizeof(s_polo.iobuf), 1);
 
@@ -1195,6 +1210,8 @@ static void extract_json_str(const char *buf, const char *key, char *out, size_t
  * Main Daemon Loop
  * ========================================================================= */
 int main(int argc, char **argv) {
+    s_ctl.fd = -1;
+    s_polo.fd = -1;
     (void)argc;
     (void)argv;
 
