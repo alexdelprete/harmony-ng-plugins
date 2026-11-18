@@ -1,0 +1,6 @@
+* text=auto
+# Run on the Hub and in CI: a CRLF checkout (Windows) broke them in a local build
+*.sh text eol=lf
+*.py text eol=lf
+*/bin/* binary
+*/bin/*.sh text eol=lf

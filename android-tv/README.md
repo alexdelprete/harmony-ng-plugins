@@ -10,7 +10,7 @@ Designed for **100% protocol and feature parity** with [`androidtvremote2`](http
 
 - **Zero ADB Dependency**: Connects directly to Google's official Android TV Remote Service on TLS ports `6466` and `6467`. No ADB debugging, no developer options, and no ADB server background processes.
 - **Direct Wire Protobufs**: Nanosecond C-level Protocol Buffer packet serialization for immediate tactile response on Harmony remotes.
-- **Embedded BearSSL TLS**: Self-contained TLS 1.2 client engine with pre-generated RSA authentication certificates for fast pairing and seamless execution.
+- **Embedded BearSSL TLS**: Self-contained TLS 1.2 client engine. Each Hub makes its own RSA key and certificate on the plugin's first start (one time, can take a few minutes on the Hub) and keeps them in `/data/harmony/plugin-data/android-tv/`.
 - **Bi-Directional Pairing**: Interactive pairing flow with on-screen 6-character PIN code exchange.
 
 ---
@@ -70,7 +70,7 @@ Directly launch streaming applications, URLs, or specific app activities:
 
 #### Any Custom Package, URL, or Deep Link
 You are not limited to built-in presets. Any Android package ID, intent URI, or HTTP(S) link is supported:
-- **Any Android app package**: Simply use `app:<package_name>`. The plugin automatically wraps it into `android-app://<package_name>`.
+- **Any Android app package**: Simply use `app:<package_name>`. The plugin sends it as `market://launch?id=<package_name>`, the link the TV's launcher resolves (`android-app://<package_name>` is converted the same way). Links with another scheme (`https://`, `market://`, …) are sent unchanged.
   - Apple TV+: `app:com.apple.atve.androidtv.appletv`
   - Max (HBO): `app:com.max.stream`
   - Hulu: `app:com.hulu.livingroomplus`
@@ -208,7 +208,16 @@ If your TV does not display the 6-character PIN prompt or refuses connections:
 3. Select **Clear Data / Clear Storage** and restart your TV.
 4. Retry the pairing flow in Harmony-NG.
 
+### Pair Again After Updating to 1.2.0
+Versions before 1.2.0 used one RSA key built into the plugin and published with its source, the same for every Hub. Version 1.2.0 makes a key for this Hub, so a TV paired before must be paired again (the plugin marks it unpaired). On the TV you may also remove the old "Harmony Hub" entry in the Remote Service's paired devices.
+
+### TV Refused After a Reset ("different key")
+The plugin remembers the key of each TV on the first session after pairing and refuses a TV at that address that shows another key (the log says "different key"). A TV that was reset, or a new TV at the same address, needs pairing again.
+
+### Commands Not Arriving / Debug Log
+The plugin logs to `/tmp/plugins/android-tv.log`. Lines starting with `[-]` explain a dropped or failed command: TV unreachable, TV error for the last command (the plugin reconnects), session silent for 15 s (the plugin reconnects before the next send), key released after a lost release. Start the plugin with `ATV_DEBUG=1` in its environment to also log every key sent and every message the TV sends (off by default: the log is kept in RAM).
+
 ### Firewall & VLAN Configuration
 Ensure local network firewalls permit traffic between your Harmony Hub and Android TV on:
-- TCP Port `6466` (TLS Pairing)
-- TCP Port `6467` (TLS Commands)
+- TCP Port `6466` (TLS Commands)
+- TCP Port `6467` (TLS Pairing)

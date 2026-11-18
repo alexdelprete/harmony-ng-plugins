@@ -15,19 +15,45 @@
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <errno.h>
 
 #include "bearssl.h"
-#include "atv_cert_data.h"
 
 #define ATV_PORT_CONTROL 6466
 #define ATV_PORT_PAIR    6467
 
+/* The TV pings about every 5 s: a session with nothing from the TV for this long is dead (a
+ * TV off the network still takes writes into the socket buffer, and the command is lost) */
+#ifndef ATV_RX_STALE_MS
+#define ATV_RX_STALE_MS       15000
+#endif
+/* After a failed connect, commands fail at once for this long instead of each waiting for
+ * its own connect timeout */
+#define ATV_CONNECT_BACKOFF_MS 3000
+/* A held key with no repeat or release for this long is released (a lost release kept the
+ * key down on the TV); the hub's IR hold deadline is the same */
+#define ATV_HOLD_DEADLINE_MS   600
+/* A repeat that waited this long in the queue is dropped: replayed late, it overshoots */
+#define ATV_STALE_REPEAT_MS    1000
+
+#ifndef ATV_DATA_DIR
+#define ATV_DATA_DIR "/data/harmony/plugin-data/android-tv"
+#endif
+
 static volatile int s_running = 1;
+
+static int s_debug = 0;
 
 static void sig_handler(int sig) {
     (void)sig;
     s_running = 0;
+}
+
+static uint64_t mono_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000ULL + (uint64_t)ts.tv_nsec / 1000000ULL;
 }
 
 /* =========================================================================
@@ -67,6 +93,7 @@ static void sig_handler(int sig) {
 #define KEYCODE_MEDIA_REWIND        89
 #define KEYCODE_MEDIA_FAST_FORWARD  90
 #define KEYCODE_MUTE                91
+#define KEYCODE_VOLUME_MUTE        164
 #define KEYCODE_CHANNEL_UP         166
 #define KEYCODE_CHANNEL_DOWN       167
 #define KEYCODE_MEDIA_PLAY         126
@@ -85,6 +112,9 @@ static void sig_handler(int sig) {
 #define KEYCODE_PROG_YELLOW        185
 #define KEYCODE_PROG_BLUE          186
 #define KEYCODE_APP_SWITCH         187
+#define KEYCODE_ASSIST             219
+#define KEYCODE_SLEEP              223
+#define KEYCODE_WAKEUP             224
 #define KEYCODE_PAIRING            225
 #define KEYCODE_LAST_CHANNEL       229
 #define KEYCODE_TV_INPUT_HDMI_1    243
@@ -123,15 +153,18 @@ static const key_mapping_t s_key_map[] = {
     {"Back", KEYCODE_BACK},
     {"Menu", KEYCODE_MENU},
     {"Power", KEYCODE_POWER},
-    {"PowerOn", KEYCODE_POWER},
-    {"PowerOff", KEYCODE_POWER},
+    {"PowerOn", KEYCODE_WAKEUP},
+    {"PowerOff", KEYCODE_SLEEP},
+    {"Wakeup", KEYCODE_WAKEUP},
+    {"Sleep", KEYCODE_SLEEP},
     {"PowerToggle", KEYCODE_POWER},
     {"TvPower", KEYCODE_TV_POWER},
     {"VolumeUp", KEYCODE_VOLUME_UP},
     {"VolumeDown", KEYCODE_VOLUME_DOWN},
-    {"Mute", KEYCODE_MUTE},
-    {"MuteToggle", KEYCODE_MUTE},
-    {"VolumeMute", KEYCODE_MUTE},
+    {"Mute", KEYCODE_VOLUME_MUTE},
+    {"MuteToggle", KEYCODE_VOLUME_MUTE},
+    {"VolumeMute", KEYCODE_VOLUME_MUTE},
+    {"MicMute", KEYCODE_MUTE},
     {"Play", KEYCODE_MEDIA_PLAY},
     {"Pause", KEYCODE_MEDIA_PAUSE},
     {"PlayPause", KEYCODE_MEDIA_PLAY_PAUSE},
@@ -144,13 +177,16 @@ static const key_mapping_t s_key_map[] = {
     {"Prev", KEYCODE_MEDIA_PREVIOUS},
     {"SkipBack", KEYCODE_MEDIA_PREVIOUS},
     {"Rewind", KEYCODE_MEDIA_REWIND},
+    {"Rev", KEYCODE_MEDIA_REWIND},
     {"FastForward", KEYCODE_MEDIA_FAST_FORWARD},
     {"Fwd", KEYCODE_MEDIA_FAST_FORWARD},
     {"Record", KEYCODE_MEDIA_RECORD},
     {"ChannelUp", KEYCODE_CHANNEL_UP},
     {"ChannelDown", KEYCODE_CHANNEL_DOWN},
     {"PrevChannel", KEYCODE_LAST_CHANNEL},
+    {"LastChannel", KEYCODE_LAST_CHANNEL},
     {"Search", KEYCODE_SEARCH},
+    {"Assist", KEYCODE_ASSIST},
     {"Settings", KEYCODE_SETTINGS},
     {"Input", KEYCODE_TV_INPUT},
     {"Source", KEYCODE_TV_INPUT},
@@ -213,30 +249,54 @@ static const key_mapping_t s_key_map[] = {
     {"Delete", KEYCODE_DEL},
     {"Backspace", KEYCODE_DEL},
     {"Notifications", KEYCODE_NOTIFICATION},
+    /* Names the README documents (they were not mapped and were dropped as unknown) */
+    {"Return", KEYCODE_BACK},
+    {"VoiceAssist", KEYCODE_ASSIST},
+    {"TvInput", KEYCODE_TV_INPUT},
+    {"AllApps", 284},
+    {"AudioTrack", 222},
+    {"TopMenu", 226},
+    {"SkipBackward", 273},
+    {"Netflix", 289},
+    {"YouTube", 290},
+    {"PrimeVideo", 291},
+    {"Prime", 291},
+    {"Disney", 292},
+    {"Disney+", 292},
+    {"Button1", 188},
+    {"Button2", 189},
+    {"Button3", 190},
+    {"Button4", 191},
     {"Pair", KEYCODE_PAIRING},
     {NULL, 0}
 };
 
+/* Names match without case, spaces, '_' or '-': "HDMI 1", "hdmi_1" and "HDMI1" are one key */
+static int key_name_eq(const char *a, const char *b) {
+    for (;;) {
+        while (*a == ' ' || *a == '_' || *a == '-') a++;
+        while (*b == ' ' || *b == '_' || *b == '-') b++;
+        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
+        if (!*a) return 1;
+        a++;
+        b++;
+    }
+}
+
 static int map_google_tv_keycode(const char *cmd) {
     if (!cmd || !cmd[0]) return KEYCODE_UNKNOWN;
 
+    if (strncasecmp(cmd, "KEY_", 4) == 0) cmd += 4;
+
     for (int i = 0; s_key_map[i].name != NULL; i++) {
-        if (strcasecmp(cmd, s_key_map[i].name) == 0) {
+        if (key_name_eq(cmd, s_key_map[i].name)) {
             return s_key_map[i].keycode;
         }
     }
 
-    if (strncasecmp(cmd, "KEY_", 4) == 0) {
-        const char *sub = cmd + 4;
-        for (int i = 0; s_key_map[i].name != NULL; i++) {
-            if (strcasecmp(sub, s_key_map[i].name) == 0) {
-                return s_key_map[i].keycode;
-            }
-        }
-    }
-
-    if (isdigit((unsigned char)cmd[0])) {
-        return atoi(cmd);
+    /* Raw Android keycode: "keycode:NN" (a bare leading digit made "3D" a HOME key) */
+    if (strncasecmp(cmd, "keycode:", 8) == 0 && isdigit((unsigned char)cmd[8])) {
+        return atoi(cmd + 8);
     }
 
     return KEYCODE_UNKNOWN;
@@ -362,6 +422,225 @@ static size_t build_ping_response(unsigned char *out, size_t out_sz, uint64_t va
 }
 
 /* =========================================================================
+ * Client identity: an RSA key and self-signed certificate made on this Hub
+ * The key used to be compiled in and published, so every install shared it.
+ * ========================================================================= */
+#define ATV_KEY_BITS 2048
+
+static unsigned char s_cert[1536];
+static size_t s_cert_len = 0;
+static unsigned char s_key[2048];
+static size_t s_key_len = 0;
+
+static size_t der_len_size(size_t len) {
+    return len < 0x80 ? 1 : (len < 0x100 ? 2 : 3);
+}
+
+/* Writes tag + length + content at out; content may already sit at out + header size */
+static size_t der_put(unsigned char *out, unsigned char tag, const void *content, size_t len) {
+    size_t h = 1 + der_len_size(len);
+    memmove(out + h, content, len);
+    out[0] = tag;
+    if (len < 0x80) {
+        out[1] = (unsigned char)len;
+    } else if (len < 0x100) {
+        out[1] = 0x81;
+        out[2] = (unsigned char)len;
+    } else {
+        out[1] = 0x82;
+        out[2] = (unsigned char)(len >> 8);
+        out[3] = (unsigned char)len;
+    }
+    return h + len;
+}
+
+/* DER INTEGER of an unsigned big-endian number */
+static size_t der_uint(unsigned char *out, const unsigned char *num, size_t len) {
+    while (len > 1 && num[0] == 0) {
+        num++;
+        len--;
+    }
+    unsigned char tmp[520];
+    size_t n = 0;
+    if (num[0] & 0x80) tmp[n++] = 0;
+    memcpy(tmp + n, num, len);
+    return der_put(out, 0x02, tmp, n + len);
+}
+
+static size_t der_name(unsigned char *out, const char *cn) {
+    static const unsigned char oid_cn[] = { 0x06, 0x03, 0x55, 0x04, 0x03 };
+    unsigned char atv[96];
+    memcpy(atv, oid_cn, sizeof(oid_cn));
+    size_t n = sizeof(oid_cn) + der_put(atv + sizeof(oid_cn), 0x0C, cn, strlen(cn));
+    unsigned char seq[100];
+    size_t sl = der_put(seq, 0x30, atv, n);
+    unsigned char set[104];
+    size_t tl = der_put(set, 0x31, seq, sl);
+    return der_put(out, 0x30, set, tl);
+}
+
+/* Self-signed X.509 v3 certificate for pk, signed with sk (sha256WithRSAEncryption).
+ * Returns its length, 0 on error. */
+static size_t build_self_signed_cert(unsigned char *out, size_t out_sz, const br_rsa_private_key *sk,
+                                     const br_rsa_public_key *pk, const unsigned char serial[8]) {
+    static const unsigned char version[] = { 0xA0, 0x03, 0x02, 0x01, 0x02 };
+    static const unsigned char alg_sig[] = { 0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7,
+                                             0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00 };
+    static const unsigned char alg_rsa[] = { 0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7,
+                                             0x0D, 0x01, 0x01, 0x01, 0x05, 0x00 };
+    /* A fixed past start: the Hub clock may be unset at boot */
+    static const char not_before[] = "200101000000Z";
+    static const char not_after[] = "491231235959Z";
+
+    unsigned char tbs[1100];
+    size_t t = 0;
+    memcpy(tbs + t, version, sizeof(version));
+    t += sizeof(version);
+    t += der_uint(tbs + t, serial, 8);
+    memcpy(tbs + t, alg_sig, sizeof(alg_sig));
+    t += sizeof(alg_sig);
+    t += der_name(tbs + t, "atvremote");
+    unsigned char val[40];
+    size_t vl = der_put(val, 0x17, not_before, 13);
+    vl += der_put(val + vl, 0x17, not_after, 13);
+    t += der_put(tbs + t, 0x30, val, vl);
+    t += der_name(tbs + t, "atvremote");
+
+    unsigned char rsapub[540];
+    size_t rl = der_uint(rsapub, pk->n, pk->nlen);
+    rl += der_uint(rsapub + rl, pk->e, pk->elen);
+    unsigned char bits[560];
+    bits[0] = 0;
+    size_t bl = 1 + der_put(bits + 1, 0x30, rsapub, rl);
+    unsigned char spki[600];
+    memcpy(spki, alg_rsa, sizeof(alg_rsa));
+    size_t sl = sizeof(alg_rsa) + der_put(spki + sizeof(alg_rsa), 0x03, bits, bl);
+    t += der_put(tbs + t, 0x30, spki, sl);
+
+    unsigned char tbs_der[1110];
+    size_t tbs_len = der_put(tbs_der, 0x30, tbs, t);
+
+    unsigned char hash[32];
+    br_sha256_context hc;
+    br_sha256_init(&hc);
+    br_sha256_update(&hc, tbs_der, tbs_len);
+    br_sha256_out(&hc, hash);
+    unsigned char sig[ATV_KEY_BITS / 8 + 1];
+    sig[0] = 0;
+    if (!br_rsa_i31_pkcs1_sign(BR_HASH_OID_SHA256, hash, sizeof(hash), sk, sig + 1)) return 0;
+
+    unsigned char body[1500];
+    size_t b = 0;
+    memcpy(body, tbs_der, tbs_len);
+    b += tbs_len;
+    memcpy(body + b, alg_sig, sizeof(alg_sig));
+    b += sizeof(alg_sig);
+    b += der_put(body + b, 0x03, sig, sizeof(sig));
+    if (b + 4 > out_sz) return 0;
+    return der_put(out, 0x30, body, b);
+}
+
+static int read_urandom(void *buf, size_t len) {
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd < 0) return -1;
+    size_t got = 0;
+    while (got < len) {
+        ssize_t n = read(fd, (unsigned char *)buf + got, len - got);
+        if (n <= 0) {
+            if (n < 0 && errno == EINTR) continue;
+            close(fd);
+            return -1;
+        }
+        got += (size_t)n;
+    }
+    close(fd);
+    return 0;
+}
+
+/* Makes a new key pair and certificate into s_key / s_cert. Returns 0 on success. */
+static int generate_identity(void) {
+    unsigned char seed[48];
+    if (read_urandom(seed, sizeof(seed)) != 0) return -1;
+    br_hmac_drbg_context rng;
+    br_hmac_drbg_init(&rng, &br_sha256_vtable, seed, sizeof(seed));
+
+    static unsigned char kbuf_priv[BR_RSA_KBUF_PRIV_SIZE(ATV_KEY_BITS)];
+    static unsigned char kbuf_pub[BR_RSA_KBUF_PUB_SIZE(ATV_KEY_BITS)];
+    br_rsa_private_key sk;
+    br_rsa_public_key pk;
+    if (!br_rsa_i31_keygen(&rng.vtable, &sk, kbuf_priv, &pk, kbuf_pub, ATV_KEY_BITS, 65537)) return -1;
+
+    unsigned char d[ATV_KEY_BITS / 8];
+    size_t dlen = br_rsa_i31_compute_privexp(d, &sk, 65537);
+    if (dlen == 0) return -1;
+    if (br_encode_rsa_raw_der(NULL, &sk, &pk, d, dlen) > sizeof(s_key)) return -1;
+    s_key_len = br_encode_rsa_raw_der(s_key, &sk, &pk, d, dlen);
+
+    unsigned char serial[8];
+    br_hmac_drbg_generate(&rng, serial, sizeof(serial));
+    serial[0] = (unsigned char)((serial[0] & 0x7F) | 0x01);
+    s_cert_len = build_self_signed_cert(s_cert, sizeof(s_cert), &sk, &pk, serial);
+    memset(d, 0, sizeof(d));
+    memset(kbuf_priv, 0, sizeof(kbuf_priv));
+    return (s_key_len > 0 && s_cert_len > 0) ? 0 : -1;
+}
+
+static int read_blob(const char *path, unsigned char *buf, size_t cap, size_t *len) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    size_t n = fread(buf, 1, cap, f);
+    int more = fgetc(f) != EOF;
+    fclose(f);
+    if (n == 0 || more) return -1;
+    *len = n;
+    return 0;
+}
+
+static int write_blob(const char *path, const unsigned char *buf, size_t len, mode_t mode) {
+    char tmp[160];
+    snprintf(tmp, sizeof(tmp), "%s.tmp", path);
+    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC, mode);
+    if (fd < 0) return -1;
+    ssize_t w = write(fd, buf, len);
+    fsync(fd);
+    close(fd);
+    if (w != (ssize_t)len || rename(tmp, path) != 0) {
+        unlink(tmp);
+        return -1;
+    }
+    return 0;
+}
+
+static void make_data_dir(void) {
+    mkdir("/data/harmony", 0755);
+    mkdir("/data/harmony/plugin-data", 0755);
+    mkdir(ATV_DATA_DIR, 0700);
+}
+
+/* Loads this Hub's identity, or makes one on the first start (a minute or more on the Hub).
+ * Returns 1 when a new identity was made (TVs paired before must pair again), 0 when loaded,
+ * -1 on error. */
+static int load_identity(void) {
+    if (read_blob(ATV_DATA_DIR "/key.der", s_key, sizeof(s_key), &s_key_len) == 0 &&
+        read_blob(ATV_DATA_DIR "/cert.der", s_cert, sizeof(s_cert), &s_cert_len) == 0) {
+        return 0;
+    }
+    printf("[*] android-tv: generating this Hub's %d-bit client key (one time, may take minutes)...\n", ATV_KEY_BITS);
+    if (generate_identity() != 0) {
+        printf("[-] android-tv: key generation failed\n");
+        return -1;
+    }
+    make_data_dir();
+    if (write_blob(ATV_DATA_DIR "/key.der", s_key, s_key_len, 0600) != 0 ||
+        write_blob(ATV_DATA_DIR "/cert.der", s_cert, s_cert_len, 0644) != 0) {
+        printf("[-] android-tv: cannot save the client key to %s\n", ATV_DATA_DIR);
+        return -1;
+    }
+    printf("[+] android-tv: client key saved\n");
+    return 1;
+}
+
+/* =========================================================================
  * BearSSL Permissive X.509 Validator & TLS Engine
  * ========================================================================= */
 typedef struct {
@@ -464,6 +743,8 @@ static int sock_write(void *ctx, const unsigned char *buf, size_t len) {
     }
 }
 
+/* Returns the message length, 0 for a message larger than out (read and dropped: failing
+ * left its bytes in the stream and the session lost sync), -1 on error */
 static int read_delimited_msg(br_sslio_context *ioc, unsigned char *out, size_t out_max) {
     uint64_t msg_len = 0;
     int shift = 0;
@@ -475,7 +756,20 @@ static int read_delimited_msg(br_sslio_context *ioc, unsigned char *out, size_t 
         shift += 7;
         if (shift > 35) return -1;
     }
-    if (msg_len == 0 || msg_len > out_max) return -1;
+    if (msg_len == 0) return 0;
+    if (msg_len > out_max) {
+        if (msg_len > 65536) return -1;
+        unsigned char sink[256];
+        size_t left = (size_t)msg_len;
+        while (left > 0) {
+            size_t n = left > sizeof(sink) ? sizeof(sink) : left;
+            if (br_sslio_read_all(ioc, sink, n) != 0) return -1;
+            left -= n;
+        }
+        printf("[-] android-tv: dropped a %u-byte message from the TV (buffer %u)\n",
+               (unsigned)msg_len, (unsigned)out_max);
+        return 0;
+    }
     if (br_sslio_read_all(ioc, out, (size_t)msg_len) != 0) return -1;
     return (int)msg_len;
 }
@@ -505,6 +799,7 @@ typedef struct {
     unsigned char iobuf[BR_SSL_BUFSIZE_BIDI];
     char host[64];
     int connected;
+    uint64_t last_rx_ms;  /* last message from the TV */
 } ctl_session_t;
 
 static ctl_session_t s_ctl;
@@ -536,10 +831,48 @@ static void init_bearssl_client_trimmed(br_ssl_client_context *cc) {
     br_ssl_engine_set_prf_sha256(&cc->eng, &br_tls12_sha256_prf);
 }
 
-static int ctl_connect(const char *host) {
-    if (!host || !host[0]) return -1;
-    if (s_ctl.connected && strcmp(s_ctl.host, host) == 0) return 0;
-    ctl_disconnect();
+/* The TV's key, pinned on the first control session after a pairing (trust on first use).
+ * The certificate check accepts any TV certificate, so without the pin anyone on the LAN
+ * answering on the TV's address got every command. */
+static void tv_pin_path(const char *host, char *out, size_t out_sz) {
+    snprintf(out, out_sz, "%s/tv-%s.pin", ATV_DATA_DIR, host);
+}
+
+static int check_tv_pin(const char *host, const permissive_x509_context *px) {
+    if (px->rsa_nlen == 0) return 0;  /* not an RSA key: nothing to pin */
+    unsigned char hash[32];
+    br_sha256_context hc;
+    br_sha256_init(&hc);
+    br_sha256_update(&hc, px->rsa_n, px->rsa_nlen);
+    br_sha256_out(&hc, hash);
+    char hex[65];
+    for (int i = 0; i < 32; i++) snprintf(hex + 2 * i, 3, "%02x", hash[i]);
+
+    char path[160];
+    tv_pin_path(host, path, sizeof(path));
+    char pinned[80] = {0};
+    FILE *f = fopen(path, "r");
+    if (f) {
+        if (!fgets(pinned, sizeof(pinned), f)) pinned[0] = '\0';
+        fclose(f);
+        pinned[strcspn(pinned, "\r\n")] = '\0';
+    }
+    if (!pinned[0]) {
+        make_data_dir();
+        if (write_blob(path, (const unsigned char *)hex, 64, 0644) == 0) {
+            printf("[*] android-tv: pinned the key of the TV at %s\n", host);
+        }
+        return 0;
+    }
+    if (strcmp(pinned, hex) != 0) {
+        printf("[-] android-tv: the TV at %s shows a different key than when first connected: "
+               "refusing the session (pair again to trust the new key)\n", host);
+        return -1;
+    }
+    return 0;
+}
+
+static int ctl_connect_once(const char *host) {
 
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
@@ -592,12 +925,12 @@ static int ctl_connect(const char *host) {
     s_ctl.px509.vtable = &px509_vtable;
 
     br_x509_certificate chain[1];
-    chain[0].data = cert_der;
-    chain[0].data_len = cert_der_len;
+    chain[0].data = s_cert;
+    chain[0].data_len = s_cert_len;
 
     br_skey_decoder_context skdc;
     br_skey_decoder_init(&skdc);
-    br_skey_decoder_push(&skdc, key_der, key_der_len);
+    br_skey_decoder_push(&skdc, s_key, s_key_len);
 
     init_bearssl_client_trimmed(&s_ctl.sc);
     br_ssl_engine_set_x509(&s_ctl.sc.eng, &s_ctl.px509.vtable);
@@ -618,9 +951,9 @@ static int ctl_connect(const char *host) {
      * 3. Read RemoteSetActive from TV
      * 4. Send our RemoteSetActive
      */
-    unsigned char tmp[512];
+    unsigned char tmp[2048];
     int r = read_delimited_msg(&s_ctl.ioc, tmp, sizeof(tmp));
-    if (r <= 0) {
+    if (r < 0) {
         ctl_disconnect();
         return -1;
     }
@@ -632,7 +965,7 @@ static int ctl_connect(const char *host) {
     }
 
     r = read_delimited_msg(&s_ctl.ioc, tmp, sizeof(tmp));
-    if (r <= 0) {
+    if (r < 0) {
         ctl_disconnect();
         return -1;
     }
@@ -643,19 +976,48 @@ static int ctl_connect(const char *host) {
         return -1;
     }
 
+    if (check_tv_pin(host, &s_ctl.px509) != 0) {
+        ctl_disconnect();
+        return -1;
+    }
+
     s_ctl.connected = 1;
+    s_ctl.last_rx_ms = mono_ms();
     strncpy(s_ctl.host, host, sizeof(s_ctl.host) - 1);
     printf("[+] android-tv: Control session connected to %s:%d\n", host, ATV_PORT_CONTROL);
     return 0;
+}
+
+static int ctl_connect(const char *host) {
+    static uint64_t s_fail_ms = 0;
+    static char s_fail_host[64] = {0};
+    if (!host || !host[0]) return -1;
+    if (s_ctl.connected && strcmp(s_ctl.host, host) == 0) return 0;
+    ctl_disconnect();
+    uint64_t now = mono_ms();
+    if (s_fail_ms && strcmp(s_fail_host, host) == 0 && now - s_fail_ms < ATV_CONNECT_BACKOFF_MS) {
+        return -1;
+    }
+    if (ctl_connect_once(host) == 0) {
+        s_fail_ms = 0;
+        return 0;
+    }
+    printf("[-] android-tv: cannot reach %s:%d (TV off the network, or not paired with this Hub)\n",
+           host, ATV_PORT_CONTROL);
+    s_fail_ms = mono_ms();
+    snprintf(s_fail_host, sizeof(s_fail_host), "%s", host);
+    return -1;
 }
 
 /* Handle incoming packets on s_ctl (e.g. RemotePingRequest) */
 static int handle_ctl_read(void) {
     if (!s_ctl.connected || s_ctl.fd < 0) return -1;
 
-    unsigned char buf[512];
+    unsigned char buf[2048];
     int rlen = read_delimited_msg(&s_ctl.ioc, buf, sizeof(buf));
-    if (rlen <= 0) return -1;
+    if (rlen < 0) return -1;
+    s_ctl.last_rx_ms = mono_ms();
+    if (rlen == 0) return 0;
 
     /* Parse RemoteMessage fields */
     size_t i = 0;
@@ -670,6 +1032,12 @@ static int handle_ctl_read(void) {
         }
         int field = (int)(tag >> 3);
         int wire = (int)(tag & 0x07);
+        if (s_debug && field != 8) printf("[d] android-tv: TV message field %d (%d bytes)\n", field, rlen);
+        /* RemoteError: the TV refused the last message. Start a clean session for the next one. */
+        if (field == 3) {
+            printf("[-] android-tv: TV reported an error for the last command, reconnecting\n");
+            return -1;
+        }
 
         if (wire == 0) {
             while (i < (size_t)rlen && (buf[i++] & 0x80) != 0);
@@ -713,6 +1081,12 @@ static int handle_ctl_read(void) {
 static int transmit_payload(const char *host, const unsigned char *payload, size_t payload_len) {
     if (!host || !host[0] || !payload || payload_len == 0) return -1;
 
+    if (s_ctl.connected && mono_ms() - s_ctl.last_rx_ms > ATV_RX_STALE_MS) {
+        printf("[-] android-tv: nothing from %s for %u ms, reconnecting before the send\n",
+               s_ctl.host, (unsigned)(mono_ms() - s_ctl.last_rx_ms));
+        ctl_disconnect();
+    }
+
     unsigned char frame[2048];
     size_t hdr_len = encode_varint(frame, payload_len);
     if (hdr_len + payload_len > sizeof(frame)) return -1;
@@ -749,20 +1123,49 @@ static int send_google_tv_text(const char *host, const char *text) {
     return transmit_payload(host, buf, len);
 }
 
+/* Package of a short app alias, or NULL */
+static const char *app_alias_package(const char *name) {
+    static const char *const aliases[][2] = {
+        {"netflix", "com.netflix.ninja"},
+        {"prime", "com.amazon.amazonvideo.livingroom"},
+        {"primevideo", "com.amazon.amazonvideo.livingroom"},
+        {"disney", "com.disney.disneyplus"},
+        {"disney+", "com.disney.disneyplus"},
+        {"spotify", "com.spotify.tv.android"},
+        {"plex", "com.plexapp.android"},
+        {"kodi", "org.xbmc.kodi"},
+        {"vlc", "org.videolan.vlc"},
+        {"twitch", "tv.twitch.android.app"},
+        {NULL, NULL}
+    };
+    for (int i = 0; aliases[i][0]; i++) {
+        if (strcasecmp(name, aliases[i][0]) == 0) return aliases[i][1];
+    }
+    return NULL;
+}
+
+/* The link the TV resolves: URLs and other "scheme://" links pass through. A package name
+ * goes out as market://launch?id=<pkg> (as androidtvremote2 sends it): an android-app://<pkg>
+ * link has no data, and the launcher activity of the app does not resolve it. */
+static int resolve_app_link(const char *link, char *out, size_t out_sz) {
+    if (!link || !link[0]) return -1;
+    int n;
+    if (strcasecmp(link, "youtube") == 0) {
+        n = snprintf(out, out_sz, "https://www.youtube.com");
+    } else if (strncasecmp(link, "android-app://", 14) == 0 && link[14] && !strchr(link + 14, '/')) {
+        n = snprintf(out, out_sz, "market://launch?id=%s", link + 14);
+    } else if (strstr(link, "://") != NULL) {
+        n = snprintf(out, out_sz, "%s", link);
+    } else {
+        const char *pkg = app_alias_package(link);
+        n = snprintf(out, out_sz, "market://launch?id=%s", pkg ? pkg : link);
+    }
+    return (n > 0 && (size_t)n < out_sz) ? 0 : -1;
+}
+
 static int send_google_tv_app_link(const char *host, const char *link) {
-    char full_link[256];
-    if (strcasecmp(link, "youtube") == 0) strcpy(full_link, "https://www.youtube.com");
-    else if (strcasecmp(link, "netflix") == 0) strcpy(full_link, "android-app://com.netflix.ninja");
-    else if (strcasecmp(link, "prime") == 0 || strcasecmp(link, "primevideo") == 0) strcpy(full_link, "android-app://com.amazon.amazonvideo.livingroom");
-    else if (strcasecmp(link, "disney") == 0 || strcasecmp(link, "disney+") == 0) strcpy(full_link, "android-app://com.disney.disneyplus");
-    else if (strcasecmp(link, "spotify") == 0) strcpy(full_link, "android-app://com.spotify.tv.android");
-    else if (strcasecmp(link, "plex") == 0) strcpy(full_link, "android-app://com.plexapp.android");
-    else if (strcasecmp(link, "kodi") == 0) strcpy(full_link, "android-app://org.xbmc.kodi");
-    else if (strcasecmp(link, "vlc") == 0) strcpy(full_link, "android-app://org.videolan.vlc");
-    else if (strcasecmp(link, "twitch") == 0) strcpy(full_link, "android-app://tv.twitch.android.app");
-    else if (strstr(link, "://") != NULL) strncpy(full_link, link, sizeof(full_link) - 1);
-    else if (strstr(link, ".") != NULL) snprintf(full_link, sizeof(full_link), "android-app://%s", link);
-    else strncpy(full_link, link, sizeof(full_link) - 1);
+    char full_link[384];
+    if (resolve_app_link(link, full_link, sizeof(full_link)) != 0) return -1;
 
     unsigned char buf[1024];
     size_t len = build_remote_app_link(buf, sizeof(buf), full_link);
@@ -790,7 +1193,8 @@ static char s_paired_host[64] = {0};
 static int s_is_paired = 0;
 
 static void load_state(void) {
-    FILE *f = fopen("/data/harmony/plugins/android-tv/state.txt", "r");
+    FILE *f = fopen(ATV_DATA_DIR "/state.txt", "r");
+    if (!f) f = fopen("/data/harmony/plugins/android-tv/state.txt", "r");
     if (!f) f = fopen("/tmp/plugins/android-tv.state", "r");
     if (f) {
         if (fscanf(f, "%63s %d", s_paired_host, &s_is_paired) == 2) {
@@ -803,8 +1207,8 @@ static void load_state(void) {
 static void save_state(const char *host, int paired) {
     strncpy(s_paired_host, host, sizeof(s_paired_host) - 1);
     s_is_paired = paired;
-    mkdir("/data/harmony/plugins/android-tv", 0755);
-    FILE *f = fopen("/data/harmony/plugins/android-tv/state.txt", "w");
+    make_data_dir();
+    FILE *f = fopen(ATV_DATA_DIR "/state.txt", "w");
     if (!f) f = fopen("/tmp/plugins/android-tv.state", "w");
     if (f) {
         fprintf(f, "%s %d\n", s_paired_host, s_is_paired);
@@ -813,8 +1217,9 @@ static void save_state(const char *host, int paired) {
 }
 
 static void write_status_file(const char *action, const char *stage, const char *msg, int ok, int paired, const char *host) {
+    /* Written whole, then renamed: the Hub polls this file and read half-written ones */
     mkdir("/tmp/plugins", 0755);
-    FILE *f = fopen("/tmp/plugins/android-tv.status", "w");
+    FILE *f = fopen("/tmp/plugins/android-tv.status.tmp", "w");
     if (!f) return;
     fprintf(f, "{\n"
                "  \"ok\": %s,\n"
@@ -833,6 +1238,7 @@ static void write_status_file(const char *action, const char *stage, const char 
                host ? host : "",
                ATV_PORT_CONTROL);
     fclose(f);
+    rename("/tmp/plugins/android-tv.status.tmp", "/tmp/plugins/android-tv.status");
 }
 
 /* =========================================================================
@@ -981,12 +1387,12 @@ static void do_start_pair(const char *host) {
     s_polo.px509.vtable = &px509_vtable;
 
     br_x509_certificate chain[1];
-    chain[0].data = cert_der;
-    chain[0].data_len = cert_der_len;
+    chain[0].data = s_cert;
+    chain[0].data_len = s_cert_len;
 
     br_skey_decoder_context skdc;
     br_skey_decoder_init(&skdc);
-    br_skey_decoder_push(&skdc, key_der, key_der_len);
+    br_skey_decoder_push(&skdc, s_key, s_key_len);
 
     init_bearssl_client_trimmed(&s_polo.sc);
     br_ssl_engine_set_x509(&s_polo.sc.eng, &s_polo.px509.vtable);
@@ -1099,7 +1505,7 @@ static void do_finish_pair(const char *pin_code) {
     /* Decode client certificate public key */
     br_x509_decoder_context dec;
     br_x509_decoder_init(&dec, 0, 0);
-    br_x509_decoder_push(&dec, cert_der, cert_der_len);
+    br_x509_decoder_push(&dec, s_cert, s_cert_len);
     const br_x509_pkey *cli_pk = br_x509_decoder_get_pkey(&dec);
     if (!cli_pk || cli_pk->key_type != BR_KEYTYPE_RSA) {
         write_status_file("pin", "error", "Client key is not RSA", 0, 0, s_polo.host);
@@ -1182,6 +1588,10 @@ static void do_finish_pair(const char *pin_code) {
 
     printf("[+] android-tv: Pairing successful with %s!\n", target_host);
     save_state(target_host, 1);
+    /* A new pairing trusts the TV's key again: the next session pins it */
+    char pin_path[160];
+    tv_pin_path(target_host, pin_path, sizeof(pin_path));
+    unlink(pin_path);
     write_status_file("pin", "done", "Pairing completed successfully", 1, 1, target_host);
 
     ctl_disconnect();
@@ -1191,6 +1601,8 @@ static void do_finish_pair(const char *pin_code) {
 /* =========================================================================
  * JSON Helpers
  * ========================================================================= */
+/* Value of the first "key": in buf, as text. A string value is read to its closing quote with
+ * its escapes undone: stopping at the first ',' cut URLs that hold one. */
 static void extract_json_str(const char *buf, const char *key, char *out, size_t out_sz) {
     out[0] = '\0';
     char search[64];
@@ -1198,10 +1610,46 @@ static void extract_json_str(const char *buf, const char *key, char *out, size_t
     const char *p = strstr(buf, search);
     if (!p) return;
     p += strlen(search);
-    while (*p == ' ' || *p == '"') p++;
+    while (*p == ' ') p++;
     size_t i = 0;
-    while (*p && *p != '"' && *p != ',' && *p != '}' && *p != '\n' && *p != '\r' && i + 1 < out_sz) {
-        out[i++] = *p++;
+    if (*p != '"') {
+        while (*p && *p != ',' && *p != '}' && *p != ' ' && *p != '\n' && *p != '\r' && i + 1 < out_sz) {
+            out[i++] = *p++;
+        }
+        out[i] = '\0';
+        return;
+    }
+    p++;
+    while (*p && *p != '"' && i + 1 < out_sz) {
+        char c = *p++;
+        if (c == '\\' && *p) {
+            char e = *p++;
+            if (e == 'n') c = '\n';
+            else if (e == 't') c = '\t';
+            else if (e == 'r') c = '\r';
+            else if (e == 'b') c = '\b';
+            else if (e == 'f') c = '\f';
+            else if (e == 'u') {
+                unsigned int cp = 0;
+                int k = 0;
+                for (; k < 4 && isxdigit((unsigned char)p[k]); k++) cp = cp * 16 + (unsigned)hex_nibble(p[k]);
+                p += k;
+                if (cp < 0x80) c = (char)cp;
+                else if (cp < 0x800 && i + 2 < out_sz) {
+                    out[i++] = (char)(0xC0 | (cp >> 6));
+                    c = (char)(0x80 | (cp & 0x3F));
+                } else if (i + 3 < out_sz) {
+                    out[i++] = (char)(0xE0 | (cp >> 12));
+                    out[i++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+                    c = (char)(0x80 | (cp & 0x3F));
+                } else {
+                    break;
+                }
+            } else {
+                c = e;  /* \" \\ \/ */
+            }
+        }
+        out[i++] = c;
     }
     out[i] = '\0';
 }
@@ -1246,13 +1694,27 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    s_debug = getenv("ATV_DEBUG") != NULL;
     load_state();
+    int ident = load_identity();
+    if (ident < 0) {
+        close(sfd);
+        unlink(sock_path);
+        return 1;
+    }
+    if (ident == 1 && s_is_paired) {
+        printf("[*] android-tv: new client key, pair the TV again\n");
+        save_state(s_paired_host, 0);
+    }
     printf("[*] android-tv (Google TV Remote v2) daemon ready on %s\n", sock_path);
 
     /* Pre-connect to paired host if configured */
     if (s_is_paired && s_paired_host[0]) {
         ctl_connect(s_paired_host);
     }
+
+    /* The key down on the TV (START_LONG sent, END_LONG not yet) */
+    struct { int keycode; char host[64]; uint64_t last_ms; } held = { 0, "", 0 };
 
     char buf[4096];
     struct pollfd pfd[2];
@@ -1267,18 +1729,31 @@ int main(int argc, char **argv) {
             nfds = 2;
         }
 
-        int pr = poll(pfd, nfds, 1000);
+        int pr = poll(pfd, nfds, held.keycode ? 100 : 1000);
         if (pr < 0) {
             if (errno == EINTR) continue;
             break;
         }
 
+        if (held.keycode && mono_ms() - held.last_ms > ATV_HOLD_DEADLINE_MS) {
+            printf("[-] android-tv: key %d had no repeat or release for %d ms, releasing it\n",
+                   held.keycode, ATV_HOLD_DEADLINE_MS);
+            int k = held.keycode;
+            held.keycode = 0;
+            send_google_tv_key(held.host, k, DIR_END_LONG);
+        }
+
         /* 1. Handle incoming message or disconnect from TV (pings, etc.) */
         if (nfds > 1 && (pfd[1].revents & (POLLIN | POLLERR | POLLHUP))) {
-            if (handle_ctl_read() != 0) {
-                printf("[*] android-tv: Control socket closed by TV, will reconnect on next command\n");
-                ctl_disconnect();
-            }
+            /* Read every message BearSSL already holds: poll() sees only the socket, and a
+             * ping left in the buffer went unanswered until the TV dropped the session */
+            do {
+                if (handle_ctl_read() != 0) {
+                    printf("[*] android-tv: Control session closed, will reconnect on next command\n");
+                    ctl_disconnect();
+                    break;
+                }
+            } while (s_ctl.connected && (br_ssl_engine_current_state(&s_ctl.sc.eng) & BR_SSL_RECVAPP));
         }
 
         /* 2. Handle incoming datagram from Hub daemon */
@@ -1305,6 +1780,14 @@ int main(int argc, char **argv) {
 
         char pin[32] = {0};
         extract_json_str(buf, "pin", pin, sizeof(pin));
+
+        char ts_str[24] = {0};
+        extract_json_str(buf, "ts", ts_str, sizeof(ts_str));
+        uint64_t ts = strtoull(ts_str, NULL, 10);
+        if (ts && strcmp(action, "repeat") == 0 && mono_ms() > ts + ATV_STALE_REPEAT_MS) {
+            if (s_debug) printf("[d] android-tv: dropped a repeat %u ms old\n", (unsigned)(mono_ms() - ts));
+            continue;
+        }
 
         /* 1. Pairing: PIN Verification / Finish */
         if (strcasecmp(action, "finish_pair") == 0 || strcasecmp(action, "pin") == 0) {
@@ -1339,11 +1822,18 @@ int main(int argc, char **argv) {
             cmd += 9;
         }
 
+        /* App links, text and channel digits act once per button: on a remote they came on
+         * press, on each repeat and on release, and the app was launched 2 or more times */
+        int once_only = (strncasecmp(cmd, "text:", 5) == 0 || strncasecmp(cmd, "app:", 4) == 0 ||
+                         strncasecmp(cmd, "launch:", 7) == 0 || strncasecmp(cmd, "channel:", 8) == 0 ||
+                         strncasecmp(cmd, "http://", 7) == 0 || strncasecmp(cmd, "https://", 8) == 0);
+        if (once_only && (strcmp(action, "repeat") == 0 || strcmp(action, "release") == 0)) continue;
+
         /* Text Entry: text:<string> */
         if (strncasecmp(cmd, "text:", 5) == 0) {
             const char *text = cmd + 5;
             printf("[*] android-tv: Sending text '%s' to %s:%d\n", text, host, ATV_PORT_CONTROL);
-            send_google_tv_text(host, text);
+            if (send_google_tv_text(host, text) != 0) printf("[-] android-tv: text not sent\n");
             continue;
         }
 
@@ -1351,18 +1841,18 @@ int main(int argc, char **argv) {
         if (strncasecmp(cmd, "app:", 4) == 0) {
             const char *app = cmd + 4;
             printf("[*] android-tv: Launching app '%s' on %s:%d\n", app, host, ATV_PORT_CONTROL);
-            send_google_tv_app_link(host, app);
+            if (send_google_tv_app_link(host, app) != 0) printf("[-] android-tv: app launch not sent\n");
             continue;
         }
         if (strncasecmp(cmd, "launch:", 7) == 0) {
             const char *app = cmd + 7;
             printf("[*] android-tv: Launching app '%s' on %s:%d\n", app, host, ATV_PORT_CONTROL);
-            send_google_tv_app_link(host, app);
+            if (send_google_tv_app_link(host, app) != 0) printf("[-] android-tv: app launch not sent\n");
             continue;
         }
         if (strncasecmp(cmd, "http://", 7) == 0 || strncasecmp(cmd, "https://", 8) == 0) {
             printf("[*] android-tv: Launching URL '%s' on %s:%d\n", cmd, host, ATV_PORT_CONTROL);
-            send_google_tv_app_link(host, cmd);
+            if (send_google_tv_app_link(host, cmd) != 0) printf("[-] android-tv: URL not sent\n");
             continue;
         }
 
@@ -1380,8 +1870,16 @@ int main(int argc, char **argv) {
             printf("[-] android-tv: Unknown/unsupported command '%s', ignoring\n", cmd);
             continue;
         }
-        printf("[*] android-tv: Keycode %d ('%s', dir=%d) -> %s:%d\n", kcode, cmd, direction, host, ATV_PORT_CONTROL);
-        send_google_tv_key(host, kcode, direction);
+        if (s_debug) printf("[d] android-tv: Keycode %d ('%s', dir=%d) -> %s:%d\n", kcode, cmd, direction, host, ATV_PORT_CONTROL);
+        if (direction == DIR_START_LONG) {
+            if (held.keycode && held.keycode != kcode) send_google_tv_key(held.host, held.keycode, DIR_END_LONG);
+            held.keycode = kcode;
+            snprintf(held.host, sizeof(held.host), "%s", host);
+            held.last_ms = mono_ms();
+        } else if (direction == DIR_END_LONG && held.keycode == kcode) {
+            held.keycode = 0;
+        }
+        if (send_google_tv_key(host, kcode, direction) != 0) printf("[-] android-tv: key %d not sent\n", kcode);
     }
 
     polo_close();
