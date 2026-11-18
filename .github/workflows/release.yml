@@ -1,0 +1,76 @@
+name: Release Plugins
+
+# For each plugin whose manifest version has no release yet, publishes a GitHub release
+# <id>-v<version> with <id>-plugin.tar.gz built by CI. Then rewrites repository.json from the
+# published assets (download_url + SHA-256 the Hub checks) and commits it to main.
+# Bump "version" in a plugin's manifest.json to release it.
+on:
+  push:
+    branches: [main]
+    paths: ['*/manifest.json']
+  workflow_dispatch:
+
+concurrency:
+  group: release-plugins
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish releases & repository.json
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download plugin archives
+        uses: actions/download-artifact@v8
+        with:
+          name: plugin-archives
+          path: dist
+
+      - name: Create releases for new versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p released
+          for m in */manifest.json; do
+            id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8-sig"))["id"])' "$m")
+            ver=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8-sig"))["version"])' "$m")
+            tag="$id-v$ver"
+            asset="$id-plugin.tar.gz"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "$tag already released"
+            else
+              sha=$(sha256sum "dist/$asset" | cut -d' ' -f1)
+              printf '%s %s\n\nSHA-256 of %s: `%s`\n\nBuilt from %s.\n' "$id" "$ver" "$asset" "$sha" "$GITHUB_SHA" > notes.md
+              gh release create "$tag" "dist/$asset" --target "$GITHUB_SHA" --title "$id $ver" --notes-file notes.md
+              echo "::notice::released $tag"
+            fi
+            # repository.json takes the SHA-256 of what is published, not of this build
+            gh release download "$tag" --pattern "$asset" --dir released --clobber
+          done
+
+      - name: Update repository.json
+        run: |
+          set -euo pipefail
+          python3 scripts/gen_repository.py . released
+          if git diff --quiet -- repository.json; then
+            echo "repository.json unchanged"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repository.json
+          git commit -m "chore(repo): update repository.json from releases [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main

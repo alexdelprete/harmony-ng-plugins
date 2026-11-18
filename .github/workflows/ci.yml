@@ -1,0 +1,96 @@
+name: Build & Test Plugins
+
+# Builds every plugin for the Hub (MIPS32 uClibc), runs the host tests, and uploads the plugin
+# archives. The release workflow calls this one and publishes its archives.
+on:
+  push:
+    branches: ['**']
+    tags-ignore: ['**']
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  # Same toolchain as the Hub firmware build (harmony-hub-control release.yml)
+  TOOLCHAIN_URL: https://toolchains.bootlin.com/downloads/releases/toolchains/mips32/tarballs/mips32--uclibc--stable-2017.05-toolchains-1-1.tar.bz2
+  TOOLCHAIN_SHA256: a75aeb0f82eaeaf1989a7dfdf80219486b5ed1470c29c6f253fbcf824922c29f
+  BEARSSL_GIT: https://bearssl.org/git/BearSSL
+  BEARSSL_COMMIT: 7bea48e5e850ab4cafbe68d3765cdaba13a86d6f
+
+jobs:
+  build:
+    name: Build plugins & host tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Cache Bootlin MIPS Toolchain
+        id: cache-toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/toolchains
+          key: bootlin-mips32-uclibc-2017.05-a75aeb0f82ea
+
+      - name: Install Bootlin MIPS uClibc Toolchain
+        if: steps.cache-toolchain.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/toolchains
+          # Pinned by SHA-256 as well as by name (the cache keeps whatever was fetched once)
+          curl -fsSL -o "$RUNNER_TEMP/toolchain.tar.bz2" "$TOOLCHAIN_URL"
+          echo "$TOOLCHAIN_SHA256  $RUNNER_TEMP/toolchain.tar.bz2" | sha256sum -c -
+          tar -xjf "$RUNNER_TEMP/toolchain.tar.bz2" -C ~/toolchains/
+
+      - name: Cache BearSSL sources
+        id: cache-bearssl
+        uses: actions/cache@v4
+        with:
+          path: ~/bearssl
+          key: bearssl-${{ env.BEARSSL_COMMIT }}
+
+      - name: Fetch BearSSL
+        if: steps.cache-bearssl.outputs.cache-hit != 'true'
+        run: |
+          git clone "$BEARSSL_GIT" ~/bearssl
+          git -C ~/bearssl checkout --detach "$BEARSSL_COMMIT"
+
+      - name: Set build paths
+        run: |
+          echo "TOOLCHAIN_BIN=$(ls -d "$HOME"/toolchains/mips32--uclibc--stable*/bin | head -n1)" >> "$GITHUB_ENV"
+          echo "BEARSSL_DIR=$HOME/bearssl" >> "$GITHUB_ENV"
+
+      - name: Host tests
+        run: bash scripts/run_host_tests.sh
+
+      - name: Build plugins for the Hub
+        run: |
+          # The MIPS library from a previous cache never mixes with this build's toolchain
+          rm -f "$BEARSSL_DIR/libbearssl.a"
+          bash build_plugins.sh
+          ls -l dist/
+
+      - name: Check committed binaries match the sources
+        run: |
+          # The archives are reproducible; the committed */bin/ files are what a dev install
+          # ("pull") fetches, so they should be this build
+          if ! git diff --quiet -- '*/bin/*'; then
+            git diff --stat -- '*/bin/*'
+            echo "::warning::committed */bin/ binaries differ from this build: run build_plugins.sh and commit them"
+          fi
+
+      - name: Check binaries are MIPS
+        run: |
+          for f in */bin/*; do
+            case "$(file -b "$f")" in
+              *"MIPS"*|*"shell script"*|*"text"*) ;;
+              *) echo "::error file=$f::not a MIPS binary: $(file -b "$f")"; exit 1 ;;
+            esac
+          done
+
+      - name: Upload plugin archives
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-archives
+          path: dist/*-plugin.tar.gz
+          if-no-files-found: error
