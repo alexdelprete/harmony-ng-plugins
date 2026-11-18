@@ -1,11 +1,18 @@
 ﻿# PlayStation 5 / PlayStation 4 Bluetooth Wake Plugin for Harmony-NG
 
-Native C daemon for waking Sony PlayStation 5 and PlayStation 4 consoles from Rest Mode over Bluetooth.
+Native C daemon for waking Sony PlayStation 5 and PlayStation 4 consoles from both Rest Mode and complete cold power-off over Bluetooth.
 
 ## Features
 - **Bluetooth HCI Wake**: Emulates an official Sony controller connection request to wake the console wirelessly.
 - **Controller BD_ADDR Spoofing**: Spoofing of a paired controller's Bluetooth MAC address for instant wake acceptance.
 - **UDP Broadcast Fallback**: Optional Sony remote-play wake packet transmission over local network.
+
+## Deep Standby / Cold Power-off Wake
+While UDP LAN wake only functions when the console is in Rest Mode, Bluetooth baseband paging allows waking the PlayStation 5 even from complete cold power-off (shutdown with AC power connected).
+
+To achieve this, the plugin leverages BCSP persistent store reload on the Hub's CSR8811 transceiver to spoof the paired DualSense controller's BD_ADDR and sends an `HCI_Create_Connection` request with R2 page scan repetition mode (`0x02`) and mandatory role switch (`0x01`).
+
+For the complete reverse-engineering analysis, sequence diagrams, and hardware implementation details, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Attribution
 This plugin and its MAC address extraction methods are based on research and reverse-engineering work from the open-source community:

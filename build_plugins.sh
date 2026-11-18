@@ -2,7 +2,7 @@
 set -eu
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+REPO_ROOT="/mnt/c/Users/YR/Documents/GitHub/harmony-hub-control"
 TOOLCHAIN_BIN="$REPO_ROOT/build/toolchains/mips32--uclibc--stable/bin"
 
 if [ -d "$TOOLCHAIN_BIN" ]; then
@@ -13,7 +13,7 @@ CC="mips-buildroot-linux-uclibc-gcc"
 AR="mips-buildroot-linux-uclibc-ar"
 STRIP="mips-buildroot-linux-uclibc-strip"
 
-PLUGINS_ROOT=$(cd "$REPO_ROOT/../harmony-ng-plugins" && pwd)
+PLUGINS_ROOT="$SCRIPT_DIR"
 BEARSSL_DIR="$REPO_ROOT/build/tmp/bearssl"
 
 echo "=== Building Harmony-NG Plugins for MIPS32 ==="
@@ -44,6 +44,10 @@ mkdir -p "$PLUGINS_ROOT/ps5-wake/bin"
 $CC -Wall -Os -s "$PLUGINS_ROOT/ps5-wake/ps5_wake.c" -o "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake"
 $STRIP "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake"
 echo "[+] ps5_wake binary built: $(ls -lh "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake" | awk '{print $5}')"
+$CC -Wall -Os -s "$PLUGINS_ROOT/ps5-wake/ps5_page.c" -o "$PLUGINS_ROOT/ps5-wake/bin/ps5_page"
+$STRIP "$PLUGINS_ROOT/ps5-wake/bin/ps5_page"
+cp "$PLUGINS_ROOT/ps5-wake/ps5_wake_helper.sh" "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake_helper.sh"
+chmod +x "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake_helper.sh"
 
 # 4. Build android-tv
 echo "[*] Compiling android-tv with BearSSL..."

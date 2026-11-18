@@ -1,7 +1,9 @@
 /*
  * PlayStation 5 / PlayStation 4 Bluetooth Wake Plugin Daemon for Harmony-NG
  *
- * Delegates Bluetooth connection requests directly to hub_btstack via IPC datagram socket.
+ * Supports:
+ * - Cold wake from complete power-off via DualSense MAC spoofing helper
+ * - Rest-mode wake via generic bt_page request to hub_btstack IPC
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -25,8 +27,21 @@ static void sig_handler(int sig) {
 }
 
 static void trigger_ps5_btstack_wake(const char *host_mac, const char *ctrl_mac) {
+    if (ctrl_mac && ctrl_mac[0]) {
+        char cmd[512];
+        const char *helper = "./bin/ps5_wake_helper.sh";
+        if (access(helper, X_OK) != 0) {
+            helper = "/data/harmony/plugins/ps5-wake/bin/ps5_wake_helper.sh";
+        }
+        snprintf(cmd, sizeof(cmd), "%s '%s' '%s' >/dev/null 2>&1 &", helper, host_mac, ctrl_mac);
+        printf("[*] ps5-wake: Executing cold-wake helper for host %s via spoofed %s\n", host_mac, ctrl_mac);
+        fflush(stdout);
+        system(cmd);
+        return;
+    }
+
     char cmd[128];
-    snprintf(cmd, sizeof(cmd), "ps5_wake %s %s\n", host_mac, (ctrl_mac && ctrl_mac[0]) ? ctrl_mac : "");
+    snprintf(cmd, sizeof(cmd), "bt_page %s\n", host_mac);
 
     int s = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (s >= 0) {
@@ -43,6 +58,7 @@ static void trigger_ps5_btstack_wake(const char *host_mac, const char *ctrl_mac)
         } else {
             fprintf(stderr, "[!] ps5-wake: Failed to send to %s: %s\n", HUB_BTSTACK_SOCK, strerror(errno));
         }
+        fflush(stdout);
     }
 }
 
@@ -51,11 +67,23 @@ static void extract_json_str(const char *buf, const char *key, char *out, size_t
     char search[64];
     snprintf(search, sizeof(search), "\"%s\":", key);
     const char *p = strstr(buf, search);
+    if (!p) {
+        snprintf(search, sizeof(search), "%s\":", key);
+        p = strstr(buf, search);
+    }
+    if (!p) {
+        snprintf(search, sizeof(search), "%s\\:", key);
+        p = strstr(buf, search);
+    }
+    if (!p) {
+        snprintf(search, sizeof(search), "%s:", key);
+        p = strstr(buf, search);
+    }
     if (!p) return;
     p += strlen(search);
-    while (*p == ' ' || *p == '"') p++;
+    while (*p == ' ' || *p == '"' || *p == '\\') p++;
     size_t i = 0;
-    while (*p && *p != '"' && *p != ',' && *p != '}' && *p != '\n' && *p != '\r' && i + 1 < out_sz) {
+    while (*p && *p != '"' && *p != ',' && *p != '}' && *p != '\\' && *p != '\n' && *p != '\r' && i + 1 < out_sz) {
         out[i++] = *p++;
     }
     out[i] = '\0';
@@ -99,6 +127,8 @@ int main(int argc, char **argv) {
             break;
         }
         buf[n] = '\0';
+        printf("[*] ps5-wake: recv %ld bytes: %s\n", (long)n, buf);
+        fflush(stdout);
 
         char host_mac[64] = {0};
         extract_json_str(buf, "host_mac", host_mac, sizeof(host_mac));
@@ -110,6 +140,7 @@ int main(int argc, char **argv) {
         if (host_mac[0]) {
             printf("[*] ps5-wake: Received wake request for %s (ctrl: %s)\n",
                    host_mac, ctrl_mac[0] ? ctrl_mac : "none");
+            fflush(stdout);
             trigger_ps5_btstack_wake(host_mac, ctrl_mac);
         }
     }
