@@ -1,12 +1,7 @@
-﻿/*
- * PlayStation 5 / PlayStation 4 Bluetooth Wake Daemon for Harmony-NG
+/*
+ * PlayStation 5 / PlayStation 4 Bluetooth Wake Plugin Daemon for Harmony-NG
  *
- * Based on research and reverse engineering from:
- * - FreeTHX/pywakepsXonbt (https://github.com/FreeTHX/pywakepsXonbt)
- * - chrippa/pywakeps4onbt (https://github.com/chrippa/pywakeps4onbt)
- *
- * Emulates official Sony controller Bluetooth connection requests (HCI Create Connection)
- * to wake consoles from Rest Mode.
+ * Delegates Bluetooth connection requests directly to hub_btstack via IPC datagram socket.
  */
 #define _GNU_SOURCE
 #include <stdio.h>
@@ -18,15 +13,9 @@
 #include <sys/un.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <fcntl.h>
 #include <errno.h>
 
-#ifndef AF_BLUETOOTH
-#define AF_BLUETOOTH 31
-#endif
-#ifndef BTPROTO_HCI
-#define BTPROTO_HCI 1
-#endif
+#define HUB_BTSTACK_SOCK "/tmp/hub_btstack.sock"
 
 static volatile int s_running = 1;
 
@@ -35,102 +24,26 @@ static void sig_handler(int sig) {
     s_running = 0;
 }
 
-static int parse_mac_bytes(const char *str, unsigned char *out_le) {
-    unsigned int m[6];
-    if (sscanf(str, "%x:%x:%x:%x:%x:%x", &m[0], &m[1], &m[2], &m[3], &m[4], &m[5]) != 6) {
-        return -1;
-    }
-    /* Little endian for HCI packets (byte 5 down to 0) */
-    out_le[0] = (unsigned char)m[5];
-    out_le[1] = (unsigned char)m[4];
-    out_le[2] = (unsigned char)m[3];
-    out_le[3] = (unsigned char)m[2];
-    out_le[4] = (unsigned char)m[1];
-    out_le[5] = (unsigned char)m[0];
-    return 0;
-}
+static void trigger_ps5_btstack_wake(const char *host_mac, const char *ctrl_mac) {
+    char cmd[128];
+    snprintf(cmd, sizeof(cmd), "ps5_wake %s %s\n", host_mac, (ctrl_mac && ctrl_mac[0]) ? ctrl_mac : "");
 
-static void trigger_ps5_hci_wake(const char *host_mac, const char *ctrl_mac) {
-    unsigned char target_le[6];
-    if (parse_mac_bytes(host_mac, target_le) != 0) return;
-
-    int s = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
+    int s = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (s >= 0) {
-        struct sockaddr {
-            unsigned short sa_family;
-            char sa_data[14];
-        } sa;
-        memset(&sa, 0, sizeof(sa));
-        sa.sa_family = AF_BLUETOOTH;
-
-        /* If controller mac provided, issue Atheros AR3012 0xFC0B BD_ADDR write */
-        if (ctrl_mac && ctrl_mac[0]) {
-            unsigned char ctrl_le[6];
-            if (parse_mac_bytes(ctrl_mac, ctrl_le) == 0) {
-                unsigned char ath_pkt[14];
-                ath_pkt[0] = 0x01; /* HCI_CMD */
-                ath_pkt[1] = 0x0B; ath_pkt[2] = 0xFC; /* Opcode 0xFC0B */
-                ath_pkt[3] = 10;   /* Param length */
-                ath_pkt[4] = 0x01; ath_pkt[5] = 0x01; ath_pkt[6] = 0x00; ath_pkt[7] = 0x06;
-                memcpy(&ath_pkt[8], ctrl_le, 6);
-                send(s, ath_pkt, sizeof(ath_pkt), 0);
-                usleep(50000);
-            }
-        }
-
-        /* 17-byte HCI Create Connection (0x0405) packet */
-        unsigned char pkt[17];
-        pkt[0] = 0x01;             /* HCI_CMD indicator */
-        pkt[1] = 0x05; pkt[2] = 0x04; /* Opcode 0x0405 */
-        pkt[3] = 13;               /* Parameter length */
-        memcpy(&pkt[4], target_le, 6);
-        pkt[10] = 0x18; pkt[11] = 0xCC; /* Packet type 0xCC18 (DM1/DH1/DM3/DH3/DM5/DH5) */
-        pkt[12] = 0x02;            /* Page scan repetition mode R2 */
-        pkt[13] = 0x00;            /* Reserved */
-        pkt[14] = 0x00; pkt[15] = 0x00; /* Clock offset */
-        pkt[16] = 0x01;            /* Allow role switch */
-
-        send(s, pkt, sizeof(pkt), 0);
+        struct sockaddr_un sun;
+        memset(&sun, 0, sizeof(sun));
+        sun.sun_family = AF_UNIX;
+        strncpy(sun.sun_path, HUB_BTSTACK_SOCK, sizeof(sun.sun_path) - 1);
+        struct timeval tv = { .tv_sec = 0, .tv_usec = 200000 };
+        setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+        ssize_t sent = sendto(s, cmd, strlen(cmd), 0, (struct sockaddr *)&sun, sizeof(sun));
         close(s);
-        printf("[*] ps5-wake: Raw HCI connection packet dispatched to %s\n", host_mac);
+        if (sent > 0) {
+            printf("[*] ps5-wake: Dispatched connection request to hub_btstack IPC: %s", cmd);
+        } else {
+            fprintf(stderr, "[!] ps5-wake: Failed to send to %s: %s\n", HUB_BTSTACK_SOCK, strerror(errno));
+        }
     }
-}
-
-static void trigger_ps5_btstack_wake(const char *host_mac) {
-    int fd = open("/tmp/bthid_input", O_WRONLY | O_NONBLOCK);
-    if (fd >= 0) {
-        char cmd[128];
-        int len = snprintf(cmd, sizeof(cmd), "TARGET %s\nconnect_host %s\n", host_mac, host_mac);
-        if (len > 0) write(fd, cmd, (size_t)len);
-        close(fd);
-        printf("[*] ps5-wake: BTstack connect dispatched for %s\n", host_mac);
-    }
-}
-
-static void trigger_ps5_udp_wake(const char *host_ip, const char *host_mac) {
-    if (!host_ip || !host_ip[0]) return;
-    int s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0) return;
-
-    int broadcast = 1;
-    setsockopt(s, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
-
-    struct sockaddr_in sin;
-    memset(&sin, 0, sizeof(sin));
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(9387);
-    inet_pton(AF_INET, host_ip, &sin.sin_addr);
-
-    char pkt[256];
-    int len = snprintf(pkt, sizeof(pkt), "AWAKE %s\r\n", host_mac ? host_mac : "");
-    if (len > 0) {
-        sendto(s, pkt, (size_t)len, 0, (struct sockaddr *)&sin, sizeof(sin));
-        /* Also send to port 9295 */
-        sin.sin_port = htons(9295);
-        sendto(s, pkt, (size_t)len, 0, (struct sockaddr *)&sin, sizeof(sin));
-    }
-    close(s);
-    printf("[*] ps5-wake: UDP rest-mode wake datagram sent to %s:9387/9295\n", host_ip);
 }
 
 static void extract_json_str(const char *buf, const char *key, char *out, size_t out_sz) {
@@ -194,15 +107,10 @@ int main(int argc, char **argv) {
         char ctrl_mac[64] = {0};
         extract_json_str(buf, "controller_mac", ctrl_mac, sizeof(ctrl_mac));
 
-        char host_ip[64] = {0};
-        extract_json_str(buf, "host_ip", host_ip, sizeof(host_ip));
-
         if (host_mac[0]) {
-            printf("[*] ps5-wake: Triggering PlayStation wake sequence for %s\n", host_mac);
-            /* Multi-tier wake */
-            trigger_ps5_hci_wake(host_mac, ctrl_mac);
-            trigger_ps5_btstack_wake(host_mac);
-            if (host_ip[0]) trigger_ps5_udp_wake(host_ip, host_mac);
+            printf("[*] ps5-wake: Received wake request for %s (ctrl: %s)\n",
+                   host_mac, ctrl_mac[0] ? ctrl_mac : "none");
+            trigger_ps5_btstack_wake(host_mac, ctrl_mac);
         }
     }
 
@@ -211,4 +119,3 @@ int main(int argc, char **argv) {
     printf("[*] ps5-wake daemon stopped\n");
     return 0;
 }
-
