@@ -11,7 +11,7 @@
       "description": "Control Android TV and Google TV devices over local network via Google TV Remote protocol v2 (TLS/PIN Pairing)",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/android-tv",
       "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/android-tv-v1.2.0/android-tv-plugin.tar.gz",
-      "sha256": "da832d5db7e942cfd358bbee4ed928a7a46ef2ef94660117d95a0aebc2686175",
+      "sha256": "c439f2345632d9d390f6c0cece77fa993fabf9ab22c67107d2ccd9c812ec8260",
       "device_definition": {
         "device_type": "androidtv",
         "display_name": "Android TV / Google TV",
@@ -275,7 +275,7 @@
       "description": "Wake PlayStation 4 and PlayStation 5 consoles over Bluetooth via DualSense/DualShock controller emulation",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/ps5-wake",
       "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/ps5-wake-v1.0.0/ps5-wake-plugin.tar.gz",
-      "sha256": "d5794da710fa3508d2decfa3446852a6e203943830661e478b0d4b8149965f93",
+      "sha256": "0a18fe0b29b6123b7d683a315932938142cd63949b03311412079e452a8a080c",
       "device_definition": {
         "device_type": "ps5",
         "display_name": "PlayStation 5 (BT Wake)",
@@ -319,7 +319,7 @@
       "description": "Control Roku streaming boxes and Roku TVs over local Wi-Fi via External Control Protocol (ECP)",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/roku-ecp",
       "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.0.0/roku-ecp-plugin.tar.gz",
-      "sha256": "cee028aa3217b40ed48088b018421f1d936805ab6a83ab5e941282f47b630fa9",
+      "sha256": "a2f0a9bbcbb8b7124a7fdc32f7638be29a8e3cae43f756238cfe7b7c69e54866",
       "device_definition": {
         "device_type": "roku",
         "display_name": "Roku Player / TV",
