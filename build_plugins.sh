@@ -72,6 +72,15 @@ $CC $CFLAGS -I"$BEARSSL_DIR/inc" "$PLUGINS_ROOT/android-tv/android_tv.c" "$BEARS
 $STRIP "$PLUGINS_ROOT/android-tv/bin/android_tv"
 echo "[+] android_tv binary built: $(ls -lh "$PLUGINS_ROOT/android-tv/bin/android_tv" | awk '{print $5}')"
 
+# The Hub's stock uClibc 0.9.30 has no __ctype_*_loc: a binary importing one (any <ctype.h>
+# call) starts, then dies at that first call, as android-tv did on PIN entry
+for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page android-tv/bin/android_tv; do
+    if mips-buildroot-linux-uclibc-readelf --dyn-syms -W "$PLUGINS_ROOT/$b" | grep -q '__ctype_'; then
+        echo "[!] $b imports __ctype_* symbols the Hub's uClibc lacks (drop the <ctype.h> calls)" >&2
+        exit 1
+    fi
+done
+
 # 5. Package into dist/. The archives are reproducible (sorted names, no times or owners), so
 # the same binaries always give the same SHA-256.
 mkdir -p "$PLUGINS_ROOT/dist"

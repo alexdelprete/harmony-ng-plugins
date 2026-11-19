@@ -11,7 +11,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
-#include <ctype.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -33,7 +32,7 @@ static int valid_mac(const char *s) {
     for (int i = 0; i < 17; i++) {
         if (i % 3 == 2) {
             if (s[i] != ':') return 0;
-        } else if (!isxdigit((unsigned char)s[i])) {
+        } else if (!strchr("0123456789abcdefABCDEF", s[i])) {
             return 0;
         }
     }

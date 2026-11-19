@@ -14,7 +14,6 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <ctype.h>
 
 /* A held key with no repeat or release for this long is released (a lost release kept the
  * key down on the Roku); the hub's IR hold deadline is the same */
@@ -77,7 +76,7 @@ static void url_append(char *out, size_t out_sz, const char *s, const char *keep
     size_t i = strlen(out);
     for (; *s && i + 4 < out_sz; s++) {
         unsigned char c = (unsigned char)*s;
-        if (isalnum(c) || strchr("-._~", c) || (keep && strchr(keep, c))) {
+        if ((c >= '0' && c <= '9') || ((c | 0x20) >= 'a' && (c | 0x20) <= 'z') || strchr("-._~", c) || (keep && strchr(keep, c))) {
             out[i++] = (char)c;
         } else {
             out[i++] = '%';
@@ -213,7 +212,7 @@ static void extract_json_str(const char *buf, const char *key, char *out, size_t
             else if (e == 'u') {
                 unsigned int cp = 0;
                 int k = 0;
-                for (; k < 4 && isxdigit((unsigned char)p[k]); k++) cp = cp * 16 + (unsigned)hex_nibble(p[k]);
+                for (; k < 4 && hex_nibble(p[k]) >= 0; k++) cp = cp * 16 + (unsigned)hex_nibble(p[k]);
                 p += k;
                 if (cp < 0x80) c = (char)cp;
                 else if (cp < 0x800 && i + 2 < out_sz) {

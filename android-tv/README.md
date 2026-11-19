@@ -57,20 +57,21 @@ Directly launch streaming applications, URLs, or specific app activities:
 
 | Command | Action |
 |---|---|
-| `app:youtube` or `app:https://www.youtube.com` | Opens YouTube |
-| `app:netflix` or `app:com.netflix.ninja` | Opens Netflix |
-| `app:prime` or `app:com.amazon.amazonvideo.livingroom` | Opens Amazon Prime Video |
-| `app:disney` or `app:com.disney.disneyplus` | Opens Disney+ |
-| `app:spotify` or `app:com.spotify.tv.android` | Opens Spotify |
-| `app:plex` or `app:com.plexapp.android` | Opens Plex |
-| `app:kodi` or `app:org.xbmc.kodi` | Opens Kodi |
-| `app:vlc` or `app:org.videolan.vlc` | Opens VLC |
-| `app:twitch` or `app:tv.twitch.android.app` | Opens Twitch |
+| `app:youtube` or `app:https://www.youtube.com` | Opens YouTube (`https://www.youtube.com`) |
+| `app:netflix` or `app:com.netflix.ninja` | Opens Netflix (`https://www.netflix.com/title`) |
+| `app:prime` or `app:com.amazon.amazonvideo.livingroom` | Opens Amazon Prime Video (`https://app.primevideo.com`) |
+| `app:disney` or `app:com.disney.disneyplus` | Opens Disney+ (`https://www.disneyplus.com`) |
+| `app:spotify` or `app:com.spotify.tv.android` | Opens Spotify (`spotify://`) |
+| `app:plex` or `app:com.plexapp.android` | Opens Plex (`plex://`) |
+| `app:kodi` or `app:org.xbmc.kodi` | Opens Kodi where `market://launch` still works (no deep link) |
+| `app:vlc` or `app:org.videolan.vlc` | Opens VLC where `market://launch` still works (no deep link) |
+| `app:twitch` or `app:tv.twitch.android.app` | Opens Twitch (`twitch://home`) |
 | `app:https://example.com/video` | Opens Web Browser / Deep link |
 
 #### Any Custom Package, URL, or Deep Link
 You are not limited to built-in presets. Any Android package ID, intent URI, or HTTP(S) link is supported:
-- **Any Android app package**: Simply use `app:<package_name>`. The plugin sends it as `market://launch?id=<package_name>`, the link the TV's launcher resolves (`android-app://<package_name>` is converted the same way). Links with another scheme (`https://`, `market://`, …) are sent unchanged.
+- **Any Android app package**: Simply use `app:<package_name>`. The presets above go out as their deep link. Any other package goes out as `market://launch?id=<package_name>`, as Home Assistant sends it (`android-app://<package_name>` is converted the same way). Links with another scheme (`https://`, `market://`, …) are sent unchanged.
+  - A Google Play change broke `market://launch` for many apps: the TV answers it with an error, or opens the store page. Use the app's deep link when it has one (see the [Home Assistant Android TV Remote docs](https://www.home-assistant.io/integrations/androidtv_remote/)). Without a deep link (Kodi, for example), the app cannot be started this way on such a TV.
   - Apple TV+: `app:com.apple.atve.androidtv.appletv`
   - Max (HBO): `app:com.max.stream`
   - Hulu: `app:com.hulu.livingroomplus`

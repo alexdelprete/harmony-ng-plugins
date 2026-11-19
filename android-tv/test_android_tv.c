@@ -34,9 +34,14 @@ int main(int argc, char **argv) {
     assert(map_google_tv_keycode("AudioTrack") == 222);
     assert(map_google_tv_keycode("Button 4") == 191);
 
-    check_link("netflix", "market://launch?id=com.netflix.ninja");
-    check_link("Disney+", "market://launch?id=com.disney.disneyplus");
-    check_link("com.plexapp.android", "market://launch?id=com.plexapp.android");
+    check_link("netflix", "https://www.netflix.com/title");
+    check_link("com.netflix.ninja", "https://www.netflix.com/title");
+    check_link("youtube", "https://www.youtube.com");
+    check_link("primevideo", "https://app.primevideo.com");
+    check_link("Disney+", "https://www.disneyplus.com");
+    check_link("com.plexapp.android", "plex://");
+    check_link("kodi", "market://launch?id=org.xbmc.kodi");
+    check_link("com.example.app", "market://launch?id=com.example.app");
     check_link("android-app://org.xbmc.kodi", "market://launch?id=org.xbmc.kodi");
     check_link("youtube", "https://www.youtube.com");
     check_link("https://www.netflix.com/title/80057281", "https://www.netflix.com/title/80057281");

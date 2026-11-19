@@ -5,7 +5,6 @@
 #include <strings.h>
 #include <unistd.h>
 #include <signal.h>
-#include <ctype.h>
 #include <stdarg.h>
 #include <time.h>
 #include <poll.h>
@@ -271,12 +270,18 @@ static const key_mapping_t s_key_map[] = {
     {NULL, 0}
 };
 
+/* No <ctype.h>: the toolchain's ctype macros import __ctype_b_loc, which the Hub's uClibc
+ * 0.9.30 lacks, and the plugin died at its first call */
+static int ascii_lower(int c) {
+    return (c >= 'A' && c <= 'Z') ? c + ('a' - 'A') : c;
+}
+
 /* Names match without case, spaces, '_' or '-': "HDMI 1", "hdmi_1" and "HDMI1" are one key */
 static int key_name_eq(const char *a, const char *b) {
     for (;;) {
         while (*a == ' ' || *a == '_' || *a == '-') a++;
         while (*b == ' ' || *b == '_' || *b == '-') b++;
-        if (tolower((unsigned char)*a) != tolower((unsigned char)*b)) return 0;
+        if (ascii_lower((unsigned char)*a) != ascii_lower((unsigned char)*b)) return 0;
         if (!*a) return 1;
         a++;
         b++;
@@ -295,7 +300,7 @@ static int map_google_tv_keycode(const char *cmd) {
     }
 
     /* Raw Android keycode: "keycode:NN" (a bare leading digit made "3D" a HOME key) */
-    if (strncasecmp(cmd, "keycode:", 8) == 0 && isdigit((unsigned char)cmd[8])) {
+    if (strncasecmp(cmd, "keycode:", 8) == 0 && cmd[8] >= '0' && cmd[8] <= '9') {
         return atoi(cmd + 8);
     }
 
@@ -1123,43 +1128,51 @@ static int send_google_tv_text(const char *host, const char *text) {
     return transmit_payload(host, buf, len);
 }
 
-/* Package of a short app alias, or NULL */
-static const char *app_alias_package(const char *name) {
-    static const char *const aliases[][2] = {
-        {"netflix", "com.netflix.ninja"},
-        {"prime", "com.amazon.amazonvideo.livingroom"},
-        {"primevideo", "com.amazon.amazonvideo.livingroom"},
-        {"disney", "com.disney.disneyplus"},
-        {"disney+", "com.disney.disneyplus"},
-        {"spotify", "com.spotify.tv.android"},
-        {"plex", "com.plexapp.android"},
-        {"kodi", "org.xbmc.kodi"},
-        {"vlc", "org.videolan.vlc"},
-        {"twitch", "tv.twitch.android.app"},
-        {NULL, NULL}
-    };
-    for (int i = 0; aliases[i][0]; i++) {
-        if (strcasecmp(name, aliases[i][0]) == 0) return aliases[i][1];
+/* Short app aliases and their packages. A deep link (from the Home Assistant androidtv_remote
+ * docs) is sent when the app has one: a Google Play change broke market://launch?id= for many
+ * apps, and the TV answered it with an error (Netflix, Prime Video, Spotify, Kodi on a Google TV). */
+typedef struct { const char *alias, *alias2, *pkg, *link; } app_alias_t;
+static const app_alias_t s_app_aliases[] = {
+    {"youtube", NULL, "com.google.android.youtube.tv", "https://www.youtube.com"},
+    {"netflix", NULL, "com.netflix.ninja", "https://www.netflix.com/title"},
+    {"prime", "primevideo", "com.amazon.amazonvideo.livingroom", "https://app.primevideo.com"},
+    {"disney", "disney+", "com.disney.disneyplus", "https://www.disneyplus.com"},
+    {"spotify", NULL, "com.spotify.tv.android", "spotify://"},
+    {"plex", NULL, "com.plexapp.android", "plex://"},
+    {"twitch", NULL, "tv.twitch.android.app", "twitch://home"},
+    /* No deep link: these only start where market://launch still works */
+    {"kodi", NULL, "org.xbmc.kodi", NULL},
+    {"vlc", NULL, "org.videolan.vlc", NULL},
+    {NULL, NULL, NULL, NULL}
+};
+
+static const app_alias_t *find_app_alias(const char *name) {
+    for (int i = 0; s_app_aliases[i].alias; i++) {
+        const app_alias_t *a = &s_app_aliases[i];
+        if (strcasecmp(name, a->alias) == 0 || (a->alias2 && strcasecmp(name, a->alias2) == 0) ||
+            strcasecmp(name, a->pkg) == 0) {
+            return a;
+        }
     }
     return NULL;
 }
 
-/* The link the TV resolves: URLs and other "scheme://" links pass through. A package name
- * goes out as market://launch?id=<pkg> (as androidtvremote2 sends it): an android-app://<pkg>
- * link has no data, and the launcher activity of the app does not resolve it. */
+/* The link the TV resolves: URLs and other "scheme://" links pass through. An alias or a known
+ * package goes out as its deep link. Any other package goes out as market://launch?id=<pkg> (as
+ * androidtvremote2 sends it): an android-app://<pkg> link has no data, and the launcher
+ * activity of the app does not resolve it. */
 static int resolve_app_link(const char *link, char *out, size_t out_sz) {
     if (!link || !link[0]) return -1;
     int n;
-    if (strcasecmp(link, "youtube") == 0) {
-        n = snprintf(out, out_sz, "https://www.youtube.com");
-    } else if (strncasecmp(link, "android-app://", 14) == 0 && link[14] && !strchr(link + 14, '/')) {
-        n = snprintf(out, out_sz, "market://launch?id=%s", link + 14);
+    if (strncasecmp(link, "android-app://", 14) == 0 && link[14] && !strchr(link + 14, '/')) {
+        link += 14;
     } else if (strstr(link, "://") != NULL) {
         n = snprintf(out, out_sz, "%s", link);
-    } else {
-        const char *pkg = app_alias_package(link);
-        n = snprintf(out, out_sz, "market://launch?id=%s", pkg ? pkg : link);
+        return (n > 0 && (size_t)n < out_sz) ? 0 : -1;
     }
+    const app_alias_t *a = find_app_alias(link);
+    if (a && a->link) n = snprintf(out, out_sz, "%s", a->link);
+    else n = snprintf(out, out_sz, "market://launch?id=%s", a ? a->pkg : link);
     return (n > 0 && (size_t)n < out_sz) ? 0 : -1;
 }
 
@@ -1480,7 +1493,7 @@ static void do_finish_pair(const char *pin_code) {
     char clean_pin[32] = {0};
     size_t cpi = 0;
     for (size_t i = 0; pin_code[i] && cpi < sizeof(clean_pin) - 1; i++) {
-        if (!isspace((unsigned char)pin_code[i])) {
+        if (!strchr(" \t\r\n\v\f", pin_code[i])) {
             clean_pin[cpi++] = pin_code[i];
         }
     }
@@ -1632,7 +1645,7 @@ static void extract_json_str(const char *buf, const char *key, char *out, size_t
             else if (e == 'u') {
                 unsigned int cp = 0;
                 int k = 0;
-                for (; k < 4 && isxdigit((unsigned char)p[k]); k++) cp = cp * 16 + (unsigned)hex_nibble(p[k]);
+                for (; k < 4 && hex_nibble(p[k]) >= 0; k++) cp = cp * 16 + (unsigned)hex_nibble(p[k]);
                 p += k;
                 if (cp < 0x80) c = (char)cp;
                 else if (cp < 0x800 && i + 2 < out_sz) {

@@ -167,8 +167,8 @@ try:
 
     send('app:netflix')
     m = tv.next()
-    check('app:netflix -> market://launch?id=com.netflix.ninja',
-          m is not None and m[1] == 90 and b'market://launch?id=com.netflix.ninja' in m[2])
+    check('app:netflix -> https://www.netflix.com/title',
+          m is not None and m[1] == 90 and b'https://www.netflix.com/title' in m[2])
     send('app:netflix', 'release')
     check('release of an app command launches nothing', tv.next(0.8) is None)
 
