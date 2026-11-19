@@ -1,7 +1,7 @@
 ﻿{
   "id": "roku-ecp",
   "name": "Roku ECP Controller",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Harmony-NG Community",
   "description": "Control Roku streaming boxes and Roku TVs over local Wi-Fi via External Control Protocol (ECP)",
   "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/roku-ecp",
@@ -29,6 +29,7 @@
       { "name": "Play", "keyCode": "PLUGIN:roku-ecp:Play" },
       { "name": "Rev", "keyCode": "PLUGIN:roku-ecp:Rev" },
       { "name": "Fwd", "keyCode": "PLUGIN:roku-ecp:Fwd" },
+      { "name": "InstantReplay", "keyCode": "PLUGIN:roku-ecp:InstantReplay" },
       { "name": "VolumeUp", "keyCode": "PLUGIN:roku-ecp:VolumeUp" },
       { "name": "VolumeDown", "keyCode": "PLUGIN:roku-ecp:VolumeDown" },
       { "name": "VolumeMute", "keyCode": "PLUGIN:roku-ecp:VolumeMute" },

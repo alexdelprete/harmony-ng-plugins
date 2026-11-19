@@ -34,4 +34,15 @@ gcc -Wall -Werror -DATV_RX_STALE_MS=2500 -DATV_DATA_DIR="\"$E2E/data\"" -I"$BEAR
 timeout 180 python3 "$ROOT/android-tv/test_fake_tv.py" "$E2E/android_tv" "$E2E" || {
     echo "--- plugin log ---"; cat "$E2E/plugin.log"; exit 1; }
 
+echo "[*] roku-ecp fake Roku"
+gcc -Wall -Werror "$ROOT/roku-ecp/roku_ecp.c" -o "$WORK/roku_ecp"
+timeout 60 python3 "$ROOT/roku-ecp/test_fake_roku.py" "$WORK/roku_ecp" "$WORK/roku_e2e" || {
+    echo "--- plugin log ---"; cat "$WORK/roku_e2e/plugin.log"; exit 1; }
+
+echo "[*] ps5-wake self-check"
+gcc -Wall -Werror -Wno-unused-function "$ROOT/ps5-wake/test_ps5_wake.c" -o "$WORK/ps5_selfcheck"
+"$WORK/ps5_selfcheck"
+gcc -Wall -Werror "$ROOT/ps5-wake/ps5_page.c" -o "$WORK/ps5_page"
+sh -n "$ROOT/ps5-wake/ps5_wake_helper.sh"
+
 echo "[+] Host tests passed"

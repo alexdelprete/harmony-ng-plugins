@@ -1,7 +1,7 @@
 ﻿{
   "id": "ps5-wake",
   "name": "PlayStation 5 BT Wake",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Harmony-NG Community",
   "description": "Wake PlayStation 4 and PlayStation 5 consoles over Bluetooth via DualSense/DualShock controller emulation",
   "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/ps5-wake",
@@ -9,7 +9,9 @@
   "files": [
     "manifest.json",
     "run.sh",
-    "bin/ps5_wake"
+    "bin/ps5_wake",
+    "bin/ps5_page",
+    "bin/ps5_wake_helper.sh"
   ],
   "device_definition": {
     "device_type": "ps5",
@@ -26,12 +28,6 @@
         "label": "Controller MAC to Spoof",
         "type": "string",
         "placeholder": "11:22:33:44:55:66"
-      },
-      {
-        "key": "host_ip",
-        "label": "Console IP (Optional for UDP Wake)",
-        "type": "string",
-        "placeholder": "192.168.1.100"
       }
     ],
     "default_commands": [

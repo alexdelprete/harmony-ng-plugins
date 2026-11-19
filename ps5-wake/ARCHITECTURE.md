@@ -64,7 +64,7 @@ On Atheros AR9344 / CSR8811 UART hardware, the Bluetooth controller does **not**
 
 To respect core maintainability rules:
 - **No PS5-specific logic in Harmony core (`hub_btstack` or `hub_daemon`)**.
-- **No continuous daemon running for a one-off wake action**.
+- **No radio work in the resident daemon**: the small `ps5_wake` daemon only receives commands; the spoof sequence runs in a one-off helper process.
 - **Minimal interruption to standard Bluetooth functioning**.
 
 ### Core Changes: Exactly 1 Generic Lock Check
@@ -91,9 +91,21 @@ The `/tmp/hub_btstack.lock` flag tells the supervisor to pause gracefully while 
    }
    ```
 3. If `controller_mac` is omitted:
-   - `ps5_wake` dispatches a standard `bt_page <host_mac>` request to `hub_btstack.sock` (for Rest Mode LAN/Bluetooth wake without spoofing).
+   - `ps5_wake` dispatches a standard `bt_page <host_mac>` request to `hub_btstack.sock` (paging from the Hub's own address, without spoofing).
 4. If `controller_mac` is present:
-   - `ps5_wake` executes the isolated helper `bin/ps5_wake_exec` to perform the 5-second BCSP spoof -> page -> restore cycle.
+   - `ps5_wake` executes the isolated helper `bin/ps5_wake_helper.sh` to perform the BCSP spoof -> page -> restore cycle.
+5. Both addresses must have the form `AA:BB:CC:DD:EE:FF`: they go into the helper's command line, so anything else is refused.
+6. Only `Wake`/`PowerOn` on `tap` or `press` start a wake; `repeat` and `release` are ignored.
+
+### Radio lock
+The helper creates `/tmp/hub_btstack.lock` with noclobber (`set -C`), so creation fails when the file exists. One file does both jobs:
+- a second wake (or any other exclusive radio task) is refused while one runs;
+- the `init.sh` supervisor, which tests `[ -f /tmp/hub_btstack.lock ]`, does not restart `hub_btstack`.
+
+An `EXIT` trap restores the Hub's PS keys, re-attaches `hci0` and removes the lock on every exit after the lock is taken, including a failed `bccmd` step and `SIGTERM`. The helper does not start `hub_btstack` itself: the supervisor does once the lock is gone. A `SIGKILL` of the helper skips the trap and leaves the lock: remove `/tmp/hub_btstack.lock` by hand or reboot.
+
+### Note: `bt_page` spoof argument in `hub_btstack`
+`hub_btstack` still accepts `bt_page <target> <spoof_bdaddr>` (`payload/source/hub_btstack/bt_cmd.c`), which changes the BD_ADDR with a runtime vendor command. Section 3 found that runtime changes are ignored or rejected over BCSP on the CSR8811, so this plugin never passes the spoof argument and uses the PS key reload instead.
 
 ---
 
@@ -112,7 +124,7 @@ sequenceDiagram
     User->>Daemon: Trigger PS5 Activity
     Daemon->>Plugin: Forward JSON via /tmp/plugins/ps5-wake.sock
     Note over Plugin: Detects controller_mac is specified
-    Plugin->>Plugin: Touch /tmp/hub_btstack.lock
+    Plugin->>Plugin: Create /tmp/hub_btstack.lock (noclobber)
     Plugin->>Supervisor: killall -9 hub_btstack hciattach
     Note over Supervisor: Sees lockfile, pauses respawn loop
     Plugin->>Radio: bccmd psload -r /tmp/ps5_spoof.psr
@@ -128,7 +140,7 @@ sequenceDiagram
     Note over Radio: Reboots with genuine Hub MAC (C8:DB:26:09:BB:85)
     Plugin->>Radio: hciattach ttyS0 bcsp && hciconfig hci0 up
     Plugin->>Plugin: rm -f /tmp/hub_btstack.lock
-    Plugin->>Supervisor: /data/harmony/bin/hub_btstack &
+    Supervisor->>Supervisor: restarts /data/harmony/bin/hub_btstack
     Note over Supervisor: Resumes normal supervision
 ```
 
@@ -140,7 +152,7 @@ sequenceDiagram
    - Harmony Elite and Smart Control remotes operate over the **CC2544 RF transceiver** on SPI (`/dev/rfspi`) handled by `hub_rf`.
    - The CSR8811 UART reload does **not** touch SPI, nor does it affect remote button responsiveness.
 2. **Transient BTstack Pause**:
-   - `hub_btstack` is paused for approximately **5 seconds** strictly during the initial `wake` execution.
+   - `hub_btstack` is stopped for the length of the helper run (about 10 seconds, up to about 20 when the page times out), plus the supervisor's restart delay.
    - Once restored, BTstack reconnects to any active peripheral hosts via `start_host_reconnect()`.
 3. **Fail-Safe Restoration**:
-   - Even if the plugin process were terminated abnormally during the wake, `/tmp/pskeys.psr` is preserved on `/tmp`, and the boot sequence (`/etc/init.d/rcS.local`) automatically restores genuine firmware keys on any warm or cold reboot.
+   - The helper's `EXIT` trap restores the genuine address after any failed step. If the helper is killed with `SIGKILL`, `/tmp/pskeys.psr` is preserved on `/tmp`, and the boot sequence (`/etc/init.d/rcS.local`) automatically restores genuine firmware keys on any warm or cold reboot.

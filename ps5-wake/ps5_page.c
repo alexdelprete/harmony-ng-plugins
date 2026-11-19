@@ -51,7 +51,11 @@ static const char *hci_err_str(unsigned char status) {
 }
 
 int main(int argc, char **argv) {
-    const char *target_str = (argc > 1) ? argv[1] : "84:E6:57:C2:0D:97";
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <target_mac> [page_scan_mode] [timeout_sec]\n", argv[0]);
+        return 1;
+    }
+    const char *target_str = argv[1];
     int page_mode = (argc > 2) ? atoi(argv[2]) : 2; // Default R2 (0x02)
     int timeout_sec = (argc > 3) ? atoi(argv[3]) : 15; // Default 15s
 

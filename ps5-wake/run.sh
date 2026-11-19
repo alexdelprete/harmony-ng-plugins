@@ -18,8 +18,16 @@ case "$1" in
       rm -f "$PID_FILE" "$SOCK_FILE"
     fi
     ;;
+  status)
+    if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+      echo "Running (PID $(cat "$PID_FILE"))"
+      exit 0
+    fi
+    echo "Stopped"
+    exit 1
+    ;;
   *)
-    echo "Usage: $0 {start|stop}"
+    echo "Usage: $0 {start|stop|status}"
     exit 1
     ;;
 esac

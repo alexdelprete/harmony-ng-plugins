@@ -5,7 +5,6 @@ Native C daemon for waking Sony PlayStation 5 and PlayStation 4 consoles from bo
 ## Features
 - **Bluetooth HCI Wake**: Emulates an official Sony controller connection request to wake the console wirelessly.
 - **Controller BD_ADDR Spoofing**: Spoofing of a paired controller's Bluetooth MAC address for instant wake acceptance.
-- **UDP Broadcast Fallback**: Optional Sony remote-play wake packet transmission over local network.
 
 ## Deep Standby / Cold Power-off Wake
 While UDP LAN wake only functions when the console is in Rest Mode, Bluetooth baseband paging allows waking the PlayStation 5 even from complete cold power-off (shutdown with AC power connected).
@@ -51,9 +50,10 @@ The extraction tool is completely self-contained with **zero dependencies** (no 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `host_mac` | String | **Yes** | Bluetooth MAC address of your PlayStation console (format: `AA:BB:CC:DD:EE:FF`). |
-| `controller_mac` | String | **Yes** | Bluetooth MAC address of your paired DualSense/DualShock controller.
-| `host_ip` | String | Optional | Console local IP address for secondary UDP wake broadcast. |
+| `controller_mac` | String | For cold wake | Bluetooth MAC address of your paired DualSense/DualShock controller. Without it the plugin asks `hub_btstack` to page the console from the Hub's own address, which a console rejects unless it knows that address. |
 
 ## Available Commands
 - `PowerOn`: Sends the Bluetooth connection wake frame to the console.
 - `Wake`: Alias for `PowerOn`.
+
+A button wakes the console once, on press (repeats and the release are ignored). Other commands are ignored. While a cold wake runs, a second one is refused.

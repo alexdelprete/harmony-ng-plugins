@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <ctype.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
@@ -26,15 +27,30 @@ static void sig_handler(int sig) {
     s_running = 0;
 }
 
+/* AA:BB:CC:DD:EE:FF. The addresses go into a shell command line: anything else is refused. */
+static int valid_mac(const char *s) {
+    if (strlen(s) != 17) return 0;
+    for (int i = 0; i < 17; i++) {
+        if (i % 3 == 2) {
+            if (s[i] != ':') return 0;
+        } else if (!isxdigit((unsigned char)s[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static void trigger_ps5_btstack_wake(const char *host_mac, const char *ctrl_mac) {
-    if (ctrl_mac && ctrl_mac[0]) {
+    if (ctrl_mac[0]) {
         char cmd[512];
         const char *helper = "./bin/ps5_wake_helper.sh";
         if (access(helper, X_OK) != 0) {
             helper = "/data/harmony/plugins/ps5-wake/bin/ps5_wake_helper.sh";
         }
-        snprintf(cmd, sizeof(cmd), "%s '%s' '%s' >/dev/null 2>&1 &", helper, host_mac, ctrl_mac);
-        printf("[*] ps5-wake: Executing cold-wake helper for host %s via spoofed %s\n", host_mac, ctrl_mac);
+        /* The helper's output goes to this daemon's log; it refuses to run while another
+         * radio task (an earlier wake) holds the radio */
+        snprintf(cmd, sizeof(cmd), "%s '%s' '%s' 2>&1 &", helper, host_mac, ctrl_mac);
+        printf("[*] ps5-wake: starting the cold-wake helper\n");
         fflush(stdout);
         system(cmd);
         return;
@@ -54,7 +70,7 @@ static void trigger_ps5_btstack_wake(const char *host_mac, const char *ctrl_mac)
         ssize_t sent = sendto(s, cmd, strlen(cmd), 0, (struct sockaddr *)&sun, sizeof(sun));
         close(s);
         if (sent > 0) {
-            printf("[*] ps5-wake: Dispatched connection request to hub_btstack IPC: %s", cmd);
+            printf("[*] ps5-wake: Dispatched page request to hub_btstack IPC\n");
         } else {
             fprintf(stderr, "[!] ps5-wake: Failed to send to %s: %s\n", HUB_BTSTACK_SOCK, strerror(errno));
         }
@@ -62,28 +78,20 @@ static void trigger_ps5_btstack_wake(const char *host_mac, const char *ctrl_mac)
     }
 }
 
+/* Value of the first "key": in buf, a string read to its closing quote (escapes are not
+ * undone: a MAC address holds none) */
 static void extract_json_str(const char *buf, const char *key, char *out, size_t out_sz) {
     out[0] = '\0';
     char search[64];
     snprintf(search, sizeof(search), "\"%s\":", key);
     const char *p = strstr(buf, search);
-    if (!p) {
-        snprintf(search, sizeof(search), "%s\":", key);
-        p = strstr(buf, search);
-    }
-    if (!p) {
-        snprintf(search, sizeof(search), "%s\\:", key);
-        p = strstr(buf, search);
-    }
-    if (!p) {
-        snprintf(search, sizeof(search), "%s:", key);
-        p = strstr(buf, search);
-    }
     if (!p) return;
     p += strlen(search);
-    while (*p == ' ' || *p == '"' || *p == '\\') p++;
+    while (*p == ' ') p++;
+    int quoted = (*p == '"');
+    if (quoted) p++;
     size_t i = 0;
-    while (*p && *p != '"' && *p != ',' && *p != '}' && *p != '\\' && *p != '\n' && *p != '\r' && i + 1 < out_sz) {
+    while (*p && i + 1 < out_sz && (quoted ? *p != '"' : (*p != ',' && *p != '}'))) {
         out[i++] = *p++;
     }
     out[i] = '\0';
@@ -122,27 +130,43 @@ int main(int argc, char **argv) {
     char buf[4096];
     while (s_running) {
         ssize_t n = recv(sfd, buf, sizeof(buf) - 1, 0);
-        if (n <= 0) {
+        if (n < 0) {
             if (errno == EINTR) continue;
+            perror("recv");
             break;
         }
-        buf[n] = '\0';
-        printf("[*] ps5-wake: recv %ld bytes: %s\n", (long)n, buf);
-        fflush(stdout);
+        buf[n] = '\0';  /* an empty datagram is ignored: it used to stop the daemon */
 
-        char host_mac[64] = {0};
+        char command[64], action[32];
+        extract_json_str(buf, "command", command, sizeof(command));
+        extract_json_str(buf, "action", action, sizeof(action));
+
+        /* One wake per button: the hub sends press, repeats and release, and each one
+         * started a wake of its own */
+        if (strcmp(action, "repeat") == 0 || strcmp(action, "release") == 0) continue;
+
+        if (strcasecmp(command, "Wake") != 0 && strcasecmp(command, "PowerOn") != 0) {
+            printf("[-] ps5-wake: command '%s' ignored (only Wake and PowerOn)\n", command);
+            continue;
+        }
+
+        char host_mac[32], ctrl_mac[32];
         extract_json_str(buf, "host_mac", host_mac, sizeof(host_mac));
         if (!host_mac[0]) extract_json_str(buf, "mac", host_mac, sizeof(host_mac));
-
-        char ctrl_mac[64] = {0};
         extract_json_str(buf, "controller_mac", ctrl_mac, sizeof(ctrl_mac));
 
-        if (host_mac[0]) {
-            printf("[*] ps5-wake: Received wake request for %s (ctrl: %s)\n",
-                   host_mac, ctrl_mac[0] ? ctrl_mac : "none");
-            fflush(stdout);
-            trigger_ps5_btstack_wake(host_mac, ctrl_mac);
+        if (!valid_mac(host_mac)) {
+            printf("[-] ps5-wake: host_mac missing or not AA:BB:CC:DD:EE:FF, wake skipped\n");
+            continue;
         }
+        if (ctrl_mac[0] && !valid_mac(ctrl_mac)) {
+            printf("[-] ps5-wake: controller_mac not AA:BB:CC:DD:EE:FF, wake skipped\n");
+            continue;
+        }
+
+        printf("[*] ps5-wake: wake requested (%s)\n", ctrl_mac[0] ? "cold wake as the controller" : "rest-mode page");
+        fflush(stdout);
+        trigger_ps5_btstack_wake(host_mac, ctrl_mac);
     }
 
     close(sfd);

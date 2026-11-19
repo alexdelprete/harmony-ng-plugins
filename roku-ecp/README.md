@@ -5,7 +5,8 @@ Native C daemon for local Wi-Fi control of Roku streaming devices (Roku Streamin
 ## Features
 - **Zero Cloud Dependency**: Operates entirely over the local network via HTTP port `8060`.
 - **Ultra Low Latency**: Native C socket client executes keypresses in under 10 ms.
-- **Bi-Directional Action Support**: Supports tap (`/keypress`), press/hold (`/keydown`), and release (`/keyup`).
+- **Bi-Directional Action Support**: Supports tap (`/keypress`), press/hold (`/keydown`), and release (`/keyup`). A held key with no repeat or release for 600 ms is released.
+- **Apps and Text**: `Launch:<app id>` (or `App:`) and `Text:<text>` act once per button press.
 - **Complete Command Catalog**: Pre-configured with navigation, media playback, volume, power, and app navigation commands.
 
 ## Requirements & Roku Setup

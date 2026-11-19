@@ -1,57 +1,84 @@
 #!/bin/sh
-set -e
+# Cold wake of a PlayStation over Bluetooth: the CSR8811 is restarted with the paired
+# controller's BD_ADDR, the console is paged from that address, then the Hub's own BD_ADDR
+# is restored. Usage: ps5_wake_helper.sh <host_mac> <controller_mac>
 
 HOST_MAC="$1"
 CTRL_MAC="$2"
+LOCK=/tmp/hub_btstack.lock
+SPOOF_PSR=/tmp/ps5_spoof.psr
+BCCMD="/usr/sbin/bccmd -t bcsp -d /dev/ttyS0 -b 115200"
 
-[ -z "$HOST_MAC" ] && exit 1
-
-if [ -z "$CTRL_MAC" ]; then
-    echo "bt_page $HOST_MAC" | nc -u -w1 /tmp/hub_btstack.sock 2>/dev/null || true
-    exit 0
+is_mac() {
+    echo "$1" | grep -q '^[0-9A-Fa-f][0-9A-Fa-f]\(:[0-9A-Fa-f][0-9A-Fa-f]\)\{5\}$'
+}
+if ! is_mac "$HOST_MAC" || ! is_mac "$CTRL_MAC"; then
+    echo "[-] ps5-wake: usage: $0 <host_mac> <controller_mac>" >&2
+    exit 1
 fi
+
+PSR_BASE="/tmp/pskeys.psr"
+[ -f "$PSR_BASE" ] || PSR_BASE="/lib/firmware/csr8811-a08.psr"
+[ -f "$PSR_BASE" ] || PSR_BASE="/lib/firmware/csr8811-a06.psr"
+if [ ! -f "$PSR_BASE" ]; then
+    echo "[-] ps5-wake: no CSR8811 PS key file, wake skipped" >&2
+    exit 1
+fi
+
+# One radio task at a time. The lock is created only when absent (noclobber), and while it
+# exists the init.sh supervisor does not restart hub_btstack.
+if ! ( set -C; : > "$LOCK" ) 2>/dev/null; then
+    echo "[-] ps5-wake: radio busy ($LOCK exists), wake skipped" >&2
+    exit 1
+fi
+
+RADIO_TAKEN=0
+
+attach() {
+    /usr/sbin/hciattach ttyS0 bcsp >/dev/null 2>&1 &
+    sleep 2
+    /usr/sbin/hciconfig hci0 up 2>/dev/null
+    /usr/sbin/hciconfig hci0 sspmode 1 2>/dev/null
+}
+
+# Runs on every exit once the lock is held: a step that failed used to leave hub_btstack
+# stopped, the spoofed address on air and the supervisor paused until a reboot
+cleanup() {
+    if [ "$RADIO_TAKEN" = 1 ]; then
+        killall -9 hciattach 2>/dev/null
+        sleep 1
+        $BCCMD psload -r "$PSR_BASE" || echo "[!] ps5-wake: restoring the Hub BD_ADDR failed" >&2
+        sleep 1
+        attach
+    fi
+    rm -f "$SPOOF_PSR" "$LOCK"
+    # The supervisor starts hub_btstack again now that the lock is gone
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM HUP
 
 # CSR PSKey &0x0001 mapping: m[3], m[4]m[5], m[2], m[0]m[1]
 PSR_VAL=$(echo "$CTRL_MAC" | tr 'A-Z' 'a-z' | sed 's/\([0-9a-f]\{2\}\):\([0-9a-f]\{2\}\):\([0-9a-f]\{2\}\):\([0-9a-f]\{2\}\):\([0-9a-f]\{2\}\):\([0-9a-f]\{2\}\)/0x\4 0x\5\6 0x\3 0x\1\2/')
+grep -v '&0x0001' "$PSR_BASE" > "$SPOOF_PSR"
+echo "&0x0001 = $PSR_VAL" >> "$SPOOF_PSR"
 
-PSR_BASE="/tmp/pskeys.psr"
-[ ! -f "$PSR_BASE" ] && PSR_BASE="/lib/firmware/csr8811-a08.psr"
-[ ! -f "$PSR_BASE" ] && PSR_BASE="/lib/firmware/csr8811-a06.psr"
-
-# 1. Prepare spoof PSR
-grep -v '&0x0001' "$PSR_BASE" > /tmp/ps5_spoof.psr
-echo "&0x0001 = $PSR_VAL" >> /tmp/ps5_spoof.psr
-
-# 2. Acquire lock, pause hub_btstack supervisor, release UART
-touch /tmp/hub_btstack.lock
-killall -9 hub_btstack hciattach 2>/dev/null || true
+# Stop hub_btstack and release the UART
+RADIO_TAKEN=1
+killall -9 hub_btstack hciattach 2>/dev/null
 sleep 1
 
-# 3. Load spoofed MAC into CSR8811 via BCSP
-/usr/sbin/bccmd -t bcsp -d /dev/ttyS0 -b 115200 psload -r /tmp/ps5_spoof.psr
+# Load the controller's BD_ADDR into the CSR8811 via BCSP
+if ! $BCCMD psload -r "$SPOOF_PSR"; then
+    echo "[-] ps5-wake: loading the controller BD_ADDR failed" >&2
+    exit 1
+fi
 sleep 1
+attach
 
-# 4. Attach kernel BCSP line discipline
-/usr/sbin/hciattach ttyS0 bcsp 2>/dev/null &
-sleep 2
-/usr/sbin/hciconfig hci0 up 2>/dev/null || true
-/usr/sbin/hciconfig hci0 sspmode 1 2>/dev/null || true
-
-# 5. Page PS5 using bundled ps5_page tool
+# Page the console with R2 page scan and role switch
 BIN_DIR=$(cd "$(dirname "$0")" && pwd)
-"$BIN_DIR/ps5_page" "$HOST_MAC" 2 10 2>&1 || true
+"$BIN_DIR/ps5_page" "$HOST_MAC" 2 10
+RC=$?
+echo "[*] ps5-wake: ps5_page exited with $RC"
 sleep 1
-
-# 6. Restore genuine Hub BD_ADDR
-killall -9 hciattach 2>/dev/null || true
-sleep 1
-/usr/sbin/bccmd -t bcsp -d /dev/ttyS0 -b 115200 psload -r "$PSR_BASE"
-sleep 1
-/usr/sbin/hciattach ttyS0 bcsp 2>/dev/null &
-sleep 2
-/usr/sbin/hciconfig hci0 up 2>/dev/null || true
-/usr/sbin/hciconfig hci0 sspmode 1 2>/dev/null || true
-
-# 7. Release lock and restart hub_btstack
-rm -f /tmp/hub_btstack.lock
-/data/harmony/bin/hub_btstack &
+exit "$RC"
