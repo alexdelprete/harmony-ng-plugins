@@ -270,12 +270,12 @@
     {
       "id": "ps5-wake",
       "name": "PlayStation 5 BT Wake",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": "Harmony-NG Community",
       "description": "Wake PlayStation 4 and PlayStation 5 consoles over Bluetooth via DualSense/DualShock controller emulation",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/ps5-wake",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/ps5-wake-v1.0.0/ps5-wake-plugin.tar.gz",
-      "sha256": "0a18fe0b29b6123b7d683a315932938142cd63949b03311412079e452a8a080c",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/ps5-wake-v1.1.0/ps5-wake-plugin.tar.gz",
+      "sha256": "6a14976ed149a251445438dac4b169d5fcd654bf6dbf41fd77369d94ab515173",
       "device_definition": {
         "device_type": "ps5",
         "display_name": "PlayStation 5 (BT Wake)",
@@ -291,12 +291,6 @@
             "label": "Controller MAC to Spoof",
             "type": "string",
             "placeholder": "11:22:33:44:55:66"
-          },
-          {
-            "key": "host_ip",
-            "label": "Console IP (Optional for UDP Wake)",
-            "type": "string",
-            "placeholder": "192.168.1.100"
           }
         ],
         "default_commands": [
@@ -314,12 +308,12 @@
     {
       "id": "roku-ecp",
       "name": "Roku ECP Controller",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "author": "Harmony-NG Community",
       "description": "Control Roku streaming boxes and Roku TVs over local Wi-Fi via External Control Protocol (ECP)",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/roku-ecp",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.0.0/roku-ecp-plugin.tar.gz",
-      "sha256": "a2f0a9bbcbb8b7124a7fdc32f7638be29a8e3cae43f756238cfe7b7c69e54866",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.1.0/roku-ecp-plugin.tar.gz",
+      "sha256": "9384fef5ecb86faab4feaa80744521b3b13da936b54fd7a8f97c600c5e5154d6",
       "device_definition": {
         "device_type": "roku",
         "display_name": "Roku Player / TV",
@@ -377,6 +371,10 @@
           {
             "name": "Fwd",
             "keyCode": "PLUGIN:roku-ecp:Fwd"
+          },
+          {
+            "name": "InstantReplay",
+            "keyCode": "PLUGIN:roku-ecp:InstantReplay"
           },
           {
             "name": "VolumeUp",
