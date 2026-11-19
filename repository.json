@@ -6,12 +6,12 @@
     {
       "id": "android-tv",
       "name": "Android TV / Google TV Remote (v2)",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": "Harmony-NG Community",
       "description": "Control Android TV and Google TV devices over local network via Google TV Remote protocol v2 (TLS/PIN Pairing)",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/android-tv",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/android-tv-v1.2.0/android-tv-plugin.tar.gz",
-      "sha256": "c439f2345632d9d390f6c0cece77fa993fabf9ab22c67107d2ccd9c812ec8260",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/android-tv-v1.2.1/android-tv-plugin.tar.gz",
+      "sha256": "d94f29d51da2590ac7077bdfec9cb91d8a842ca22c0ad3ec20d524208d1ce070",
       "device_definition": {
         "device_type": "androidtv",
         "display_name": "Android TV / Google TV",
@@ -270,12 +270,12 @@
     {
       "id": "ps5-wake",
       "name": "PlayStation 5 BT Wake",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "author": "Harmony-NG Community",
       "description": "Wake PlayStation 4 and PlayStation 5 consoles over Bluetooth via DualSense/DualShock controller emulation",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/ps5-wake",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/ps5-wake-v1.1.0/ps5-wake-plugin.tar.gz",
-      "sha256": "6a14976ed149a251445438dac4b169d5fcd654bf6dbf41fd77369d94ab515173",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/ps5-wake-v1.1.1/ps5-wake-plugin.tar.gz",
+      "sha256": "ccce6889ee54886f15ea1346210064c9858d21b3810cdec51e9d0ede74babf2c",
       "device_definition": {
         "device_type": "ps5",
         "display_name": "PlayStation 5 (BT Wake)",
@@ -308,12 +308,12 @@
     {
       "id": "roku-ecp",
       "name": "Roku ECP Controller",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "author": "Harmony-NG Community",
       "description": "Control Roku streaming boxes and Roku TVs over local Wi-Fi via External Control Protocol (ECP)",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/roku-ecp",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.1.0/roku-ecp-plugin.tar.gz",
-      "sha256": "9384fef5ecb86faab4feaa80744521b3b13da936b54fd7a8f97c600c5e5154d6",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.1.1/roku-ecp-plugin.tar.gz",
+      "sha256": "b44f3803bfd03c87e9a61c60eb5ec936f5f56debc89ae74ec404b678ce7d49ab",
       "device_definition": {
         "device_type": "roku",
         "display_name": "Roku Player / TV",
