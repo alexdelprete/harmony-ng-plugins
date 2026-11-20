@@ -87,7 +87,7 @@ mkdir -p "$PLUGINS_ROOT/dist"
 for p in roku-ecp ps5-wake android-tv; do
     echo "[*] Packaging $p..."
     tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
-        -cf - -C "$PLUGINS_ROOT/${p}" manifest.json run.sh bin/ | gzip -n -9 > "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz"
+        -cf - -C "$PLUGINS_ROOT/${p}" manifest.json bin/ | gzip -n -9 > "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz"
     echo "[+] Created dist/${p}-plugin.tar.gz ($(ls -lh "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz" | awk '{print $5}'))"
 done
 

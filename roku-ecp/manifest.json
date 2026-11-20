@@ -1,14 +1,13 @@
 ﻿{
   "id": "roku-ecp",
   "name": "Roku ECP Controller",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "author": "Harmony-NG Community",
   "description": "Control Roku streaming boxes and Roku TVs over local Wi-Fi via External Control Protocol (ECP)",
   "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/roku-ecp",
-  "entrypoint": "run.sh",
+  "entrypoint": "bin/roku_ecp",
   "files": [
     "manifest.json",
-    "run.sh",
     "bin/roku_ecp"
   ],
   "device_definition": {
