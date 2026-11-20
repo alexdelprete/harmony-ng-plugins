@@ -63,6 +63,6 @@ See the full [**HarmonyNG Plugin Architecture & Developer Guide**](https://githu
 ### 1. Requirements
 - Atheros AR9344 MIPS 24Kc (big-endian) compatibility.
 - Light footprint (< 500 KB unpacked).
-- Zero flash wear (sockets and PIDs must use `/tmp/plugins/`).
-- Processes must handle `run.sh start` and `run.sh stop`.
+- Zero flash wear (sockets and runtime files must use `/tmp/plugins/`).
+- The manifest `entrypoint` is the binary itself. The Hub starts it, keeps it in the foreground and stops it (SIGTERM, then SIGKILL after 1 s): never daemonize, write no pid file. The socket path is `argv[1]` and `HARMONY_SOCKET`.
 - Listen on UNIX domain datagram socket: `/tmp/plugins/<plugin_id>.sock`.
