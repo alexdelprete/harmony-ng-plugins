@@ -1,0 +1,57 @@
+{
+  "id": "switch2-wake",
+  "name": "Nintendo Switch 2 BT Wake",
+  "version": "1.1.0",
+  "author": "Harmony-NG Community",
+  "description": "Wake a Nintendo Switch 2 from sleep with the Bluetooth LE wake advertisement of a paired Joy-Con 2 or Pro Controller 2",
+  "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/switch2-wake",
+  "entrypoint": "bin/switch2_wake",
+  "files": [
+    "manifest.json",
+    "bin/switch2_wake"
+  ],
+  "pairing": {
+    "supported": true,
+    "type": "listen",
+    "requires_host": false,
+    "timeout_s": 30,
+    "title": "Find Switch 2",
+    "button_label": "Find Switch 2",
+    "description": "Fills in the addresses from the paired controller.",
+    "instructions": "Put the Switch 2 to sleep, then press a button on its paired Joy-Con 2 or Pro Controller 2."
+  },
+  "device_definition": {
+    "device_type": "switch2",
+    "display_name": "Nintendo Switch 2 (BT Wake)",
+    "config_fields": [
+      {
+        "key": "switch_mac",
+        "label": "Switch 2 Bluetooth MAC Address",
+        "type": "string",
+        "placeholder": "98:E2:55:99:1F:97"
+      },
+      {
+        "key": "controller_mac",
+        "label": "Paired Controller MAC Address",
+        "type": "string",
+        "placeholder": "11:22:33:44:55:66"
+      },
+      {
+        "key": "controller_pid",
+        "label": "Controller Type (2066 Joy-Con 2 L, 2067 Joy-Con 2 R, 2069 Pro Controller 2)",
+        "type": "string",
+        "placeholder": "2066"
+      }
+    ],
+    "default_commands": [
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:switch2-wake:Wake"
+      },
+      {
+        "name": "Wake",
+        "keyCode": "PLUGIN:switch2-wake:Wake"
+      }
+    ]
+  }
+}

@@ -12,6 +12,7 @@ This repository contains official reference plugins, packaging tools, and the ma
 | :--- | :--- | :--- | :--- |
 | **Roku ECP Controller** | `roku-ecp` | Control Roku streaming devices and Roku TVs over local Wi-Fi via External Control Protocol (ECP). | `roku` |
 | **PlayStation 5 BT Wake** | `ps5-wake` | Wake PlayStation 4 / PlayStation 5 consoles over Bluetooth using DualSense / DualShock emulation. | `ps5` |
+| **Nintendo Switch 2 BT Wake** | `switch2-wake` | Wake a Nintendo Switch 2 from sleep with the Bluetooth LE wake advertisement of a paired Joy-Con 2 / Pro Controller 2. | `switch2` |
 | **Android TV Remote** | `android-tv` | Send directional, media, and navigation commands to Android TV and Google TV devices over local network. | `androidtv` |
 
 ---
@@ -23,6 +24,7 @@ This repository contains official reference plugins, packaging tools, and the ma
 ├── repository.json              # Marketplace catalog (written by the release workflow)
 ├── roku-ecp/                    # Roku Wi-Fi ECP plugin source & manifest
 ├── ps5-wake/                    # PS5 Bluetooth Wake plugin source & manifest
+├── switch2-wake/                # Switch 2 Bluetooth LE Wake plugin source, manifest & self-check
 ├── android-tv/                  # Android TV network controller source, manifest & tests
 ├── build_plugins.sh             # Builds every plugin for the Hub and packages dist/*.tar.gz
 ├── scripts/
