@@ -60,6 +60,14 @@ jobs:
           echo "TOOLCHAIN_BIN=$(ls -d "$HOME"/toolchains/mips32--uclibc--stable*/bin | head -n1)" >> "$GITHUB_ENV"
           echo "BEARSSL_DIR=$HOME/bearssl" >> "$GITHUB_ENV"
 
+      - name: Check the BearSSL export list matches the firmware
+        run: |
+          # The plugins link against a libbearssl.so.0 built with this list: a name the Hub's
+          # library lacks must fail here, not on the Hub
+          curl -fsSL -o "$RUNNER_TEMP/exports.txt" https://raw.githubusercontent.com/iranl/harmony-ng/main/build/bearssl_exports.txt
+          diff <(grep -v '^#' "$RUNNER_TEMP/exports.txt") <(grep -v '^#' scripts/bearssl_exports.txt) \
+            || { echo "::error::scripts/bearssl_exports.txt names differ from harmony-ng build/bearssl_exports.txt"; exit 1; }
+
       - name: Host tests
         run: bash scripts/run_host_tests.sh
 

@@ -47,6 +47,17 @@ if [ ! -f "$BEARSSL_DIR/libbearssl.a" ] || [ "$(cat "$BEARSSL_DIR/libbearssl.fla
     )
 fi
 
+# The Hub's /data/harmony/lib/libbearssl.so.0 (firmware with shared BearSSL): same commit, same
+# exported names. The plugins link it instead of a static copy (android-tv: 36 KB, not 100 KB),
+# and list it in "requires_libs". Only for linking: the archive ships no library.
+BEARSSL_SO_DIR="$PLUGINS_ROOT/build/bearssl_so"
+mkdir -p "$BEARSSL_SO_DIR"
+{ echo "{ global:"; grep -v '^#' "$PLUGINS_ROOT/scripts/bearssl_exports.txt" | sed '/^$/d; s/$/;/'; echo "local: *; };"; } > "$BEARSSL_SO_DIR/exports.map"
+$CC -shared -s -Wl,--gc-sections -Wl,--version-script="$BEARSSL_SO_DIR/exports.map" \
+    -Wl,-soname,libbearssl.so.0 -o "$BEARSSL_SO_DIR/libbearssl.so.0" \
+    -Wl,--whole-archive "$BEARSSL_DIR/libbearssl.a" -Wl,--no-whole-archive
+BEARSSL_LINK="-I$BEARSSL_DIR/inc -L$BEARSSL_SO_DIR -l:libbearssl.so.0"
+
 # 2. roku-ecp
 echo "[*] Compiling roku-ecp..."
 mkdir -p "$PLUGINS_ROOT/roku-ecp/bin"
@@ -72,33 +83,50 @@ $CC $CFLAGS "$PLUGINS_ROOT/switch2-wake/switch2_wake.c" -o "$PLUGINS_ROOT/switch
 $STRIP "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake"
 echo "[+] switch2_wake binary built: $(ls -lh "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake" | awk '{print $5}')"
 
-# 5. android-tv
-echo "[*] Compiling android-tv with BearSSL..."
+# 5. wol
+echo "[*] Compiling wol..."
+mkdir -p "$PLUGINS_ROOT/wol/bin"
+$CC $CFLAGS -I"$PLUGINS_ROOT/common" "$PLUGINS_ROOT/wol/wol.c" -o "$PLUGINS_ROOT/wol/bin/wol"
+$STRIP "$PLUGINS_ROOT/wol/bin/wol"
+echo "[+] wol binary built: $(ls -lh "$PLUGINS_ROOT/wol/bin/wol" | awk '{print $5}')"
+
+# 6. android-tv
+echo "[*] Compiling android-tv with the Hub's BearSSL..."
 mkdir -p "$PLUGINS_ROOT/android-tv/bin"
-$CC $CFLAGS -I"$BEARSSL_DIR/inc" "$PLUGINS_ROOT/android-tv/android_tv.c" "$BEARSSL_DIR/libbearssl.a" -o "$PLUGINS_ROOT/android-tv/bin/android_tv"
+$CC $CFLAGS -I"$PLUGINS_ROOT/common" "$PLUGINS_ROOT/android-tv/android_tv.c" -o "$PLUGINS_ROOT/android-tv/bin/android_tv" $BEARSSL_LINK
 $STRIP "$PLUGINS_ROOT/android-tv/bin/android_tv"
 echo "[+] android_tv binary built: $(ls -lh "$PLUGINS_ROOT/android-tv/bin/android_tv" | awk '{print $5}')"
 
 # The Hub's stock uClibc 0.9.30 has no __ctype_*_loc: a binary importing one (any <ctype.h>
 # call) starts, then dies at that first call, as android-tv did on PIN entry
-for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page switch2-wake/bin/switch2_wake android-tv/bin/android_tv; do
+for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page switch2-wake/bin/switch2_wake wol/bin/wol android-tv/bin/android_tv; do
     if mips-buildroot-linux-uclibc-readelf --dyn-syms -W "$PLUGINS_ROOT/$b" | grep -q '__ctype_'; then
         echo "[!] $b imports __ctype_* symbols the Hub's uClibc lacks (drop the <ctype.h> calls)" >&2
         exit 1
     fi
+    # A library other than libc must be in the manifest's requires_libs: the Hub then refuses
+    # the install on firmware without it, instead of a plugin that cannot start
+    for lib in $(mips-buildroot-linux-uclibc-readelf -d "$PLUGINS_ROOT/$b" | sed -n 's/.*NEEDED.*\[\(.*\)\]/\1/p'); do
+        [ "$lib" = "libc.so.0" ] && continue
+        if ! python3 -c 'import json,sys; sys.exit(sys.argv[2] not in json.load(open(sys.argv[1], encoding="utf-8-sig")).get("requires_libs", []))' \
+            "$PLUGINS_ROOT/${b%%/*}/manifest.json" "$lib"; then
+            echo "[!] $b needs $lib, which ${b%%/*}/manifest.json does not list in requires_libs" >&2
+            exit 1
+        fi
+    done
 done
 
-# 6. Package into dist/. The archives are reproducible (sorted names, no times or owners), so
+# 7. Package into dist/. The archives are reproducible (sorted names, no times or owners), so
 # the same binaries always give the same SHA-256.
 mkdir -p "$PLUGINS_ROOT/dist"
-for p in roku-ecp ps5-wake switch2-wake android-tv; do
+for p in roku-ecp ps5-wake switch2-wake wol android-tv; do
     echo "[*] Packaging $p..."
     tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
         -cf - -C "$PLUGINS_ROOT/${p}" manifest.json bin/ | gzip -n -9 > "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz"
     echo "[+] Created dist/${p}-plugin.tar.gz ($(ls -lh "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz" | awk '{print $5}'))"
 done
 
-# 7. repository.json from the manifests, with the SHA-256 of each archive just built (for local
+# 8. repository.json from the manifests, with the SHA-256 of each archive just built (for local
 # testing: the release workflow rewrites it from the published release assets)
 python3 "$PLUGINS_ROOT/scripts/gen_repository.py" "$PLUGINS_ROOT" "$PLUGINS_ROOT/dist"
 echo "=== All plugins compiled and packaged successfully! ==="

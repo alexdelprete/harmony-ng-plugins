@@ -18,6 +18,7 @@
 #include <errno.h>
 
 #include "bearssl.h"
+#include "wol.h"
 
 #define ATV_PORT_CONTROL 6466
 #define ATV_PORT_PAIR    6467
@@ -989,6 +990,9 @@ static int ctl_connect_once(const char *host) {
     s_ctl.connected = 1;
     s_ctl.last_rx_ms = mono_ms();
     strncpy(s_ctl.host, host, sizeof(s_ctl.host) - 1);
+    /* The TV's MAC, for Wake-on-LAN when it is off the network later */
+    make_data_dir();
+    wol_learn(ATV_DATA_DIR, host);
     printf("[+] android-tv: Control session connected to %s:%d\n", host, ATV_PORT_CONTROL);
     return 0;
 }
@@ -1837,10 +1841,38 @@ int main(int argc, char **argv) {
 
         /* App links, text and channel digits act once per button: on a remote they came on
          * press, on each repeat and on release, and the app was launched 2 or more times */
-        int once_only = (strncasecmp(cmd, "text:", 5) == 0 || strncasecmp(cmd, "app:", 4) == 0 ||
+        int is_conn = strcasecmp(cmd, "Connect") == 0 || strcasecmp(cmd, "Disconnect") == 0;
+        int is_wake = strcasecmp(cmd, "PowerOn") == 0 || strcasecmp(cmd, "WakeOnLan") == 0;
+        int once_only = (is_conn || is_wake || strncasecmp(cmd, "text:", 5) == 0 || strncasecmp(cmd, "app:", 4) == 0 ||
                          strncasecmp(cmd, "launch:", 7) == 0 || strncasecmp(cmd, "channel:", 8) == 0 ||
                          strncasecmp(cmd, "http://", 7) == 0 || strncasecmp(cmd, "https://", 8) == 0);
         if (once_only && (strcmp(action, "repeat") == 0 || strcmp(action, "release") == 0)) continue;
+
+        /* The control session alone, no key: Connect opens it (the next key goes out without a
+         * handshake), Disconnect closes it until the next command */
+        if (is_conn) {
+            if (strcasecmp(cmd, "Disconnect") == 0) {
+                if (s_ctl.connected) printf("[*] android-tv: Disconnected from %s\n", s_ctl.host);
+                ctl_disconnect();
+            } else if (ctl_connect(host) != 0) {
+                printf("[-] android-tv: Connect to %s failed\n", host);
+            }
+            continue;
+        }
+
+        /* PowerOn: the wake key when the TV answers, else Wake-on-LAN to its MAC (the "mac"
+         * config field, else the one learned while it was on). WakeOnLan: the packet only. */
+        if (is_wake) {
+            char mac[32] = {0};
+            extract_json_str(buf, "mac", mac, sizeof(mac));
+            if (strcasecmp(cmd, "PowerOn") == 0 && ctl_connect(host) == 0) {
+                if (send_google_tv_key(host, KEYCODE_WAKEUP, DIR_SHORT) != 0) printf("[-] android-tv: wake key not sent\n");
+            } else if (wol_wake(ATV_DATA_DIR, host, mac, "", 0) != 0) {
+                printf("[-] android-tv: %s is off the network and its MAC is not known: set the device's "
+                       "MAC Address, or turn the TV on once while the plugin runs\n", host);
+            }
+            continue;
+        }
 
         /* Text Entry: text:<string> */
         if (strncasecmp(cmd, "text:", 5) == 0) {
