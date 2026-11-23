@@ -14,6 +14,10 @@ This repository contains official reference plugins, packaging tools, and the ma
 | **PlayStation 5 BT Wake** | `ps5-wake` | Wake PlayStation 4 / PlayStation 5 consoles over Bluetooth using DualSense / DualShock emulation. | `ps5` |
 | **Nintendo Switch 2 BT Wake** | `switch2-wake` | Wake a Nintendo Switch 2 from sleep with the Bluetooth LE wake advertisement of a paired Joy-Con 2 / Pro Controller 2. | `switch2` |
 | **Android TV Remote** | `android-tv` | Send directional, media, and navigation commands to Android TV and Google TV devices over local network. | `androidtv` |
+| **Samsung Smart TV (Tizen)** | `samsung-tv` | Samsung TVs from 2016: every key with holds, apps, text, power state, Wake-on-LAN. Allow-on-TV pairing. | `samsungtv` |
+| **LG webOS TV** | `lg-webos` | LG TVs from 2014: buttons, volume, inputs, apps, text, power, Wake-on-LAN. Accept-on-TV pairing. | `lgwebos` |
+| **Sony Bravia TV** | `sony-bravia` | Sony Bravia TVs from 2013 over IP control with a pre-shared key: IRCC keys, power, inputs, volume. | `sonybravia` |
+| **Wake-on-LAN** | `wol` | Wake PCs, NAS, TVs and consoles: a Wake-on-LAN device, or `PLUGIN:wol:<MAC>` on any device. Find MAC from the IP. | `wol` |
 
 ---
 
@@ -26,10 +30,16 @@ This repository contains official reference plugins, packaging tools, and the ma
 ├── ps5-wake/                    # PS5 Bluetooth Wake plugin source & manifest
 ├── switch2-wake/                # Switch 2 Bluetooth LE Wake plugin source, manifest & self-check
 ├── android-tv/                  # Android TV network controller source, manifest & tests
+├── samsung-tv/ lg-webos/ sony-bravia/  # TV plugins, each with a test against a fake TV
+├── wol/                         # Wake-on-LAN plugin
+├── common/                      # Shared headers: plugin.h, wol.h, tls.h (Hub BearSSL), ws.h
+├── template/                    # A plugin to copy (built and tested by CI, never released)
 ├── build_plugins.sh             # Builds every plugin for the Hub and packages dist/*.tar.gz
 ├── scripts/
 │   ├── gen_repository.py        # repository.json from the manifests + archive SHA-256s
-│   └── run_host_tests.sh        # Host tests (android-tv self-check and fake-TV test)
+│   ├── bearssl_exports.txt      # Names the Hub's libbearssl.so.0 exports (copy of the firmware's)
+│   ├── fake_ws.py               # Fake WebSocket/TLS device and plugin helpers for the tests
+│   └── run_host_tests.sh        # Host tests (every plugin against a fake device)
 └── .github/workflows/
     ├── ci.yml                   # Build + host tests on every push and pull request
     └── release.yml              # Releases new plugin versions, updates repository.json
@@ -60,7 +70,8 @@ version to publish a change.
 
 ## How to Create a Plugin
 
-See the full [**HarmonyNG Plugin Architecture & Developer Guide**](https://github.com/iranl/harmony-ng/blob/main/docs/PLUGINS.md).
+Start from [`template/`](template/README.md): a working plugin on the shared headers in
+`common/`, with its test. See the full [**HarmonyNG Plugin Architecture & Developer Guide**](https://github.com/iranl/harmony-ng/blob/main/docs/PLUGINS.md).
 
 ### 1. Requirements
 - Atheros AR9344 MIPS 24Kc (big-endian) compatibility.

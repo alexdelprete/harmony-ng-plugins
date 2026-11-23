@@ -83,12 +83,18 @@ $CC $CFLAGS "$PLUGINS_ROOT/switch2-wake/switch2_wake.c" -o "$PLUGINS_ROOT/switch
 $STRIP "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake"
 echo "[+] switch2_wake binary built: $(ls -lh "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake" | awk '{print $5}')"
 
-# 5. wol
-echo "[*] Compiling wol..."
-mkdir -p "$PLUGINS_ROOT/wol/bin"
-$CC $CFLAGS -I"$PLUGINS_ROOT/common" "$PLUGINS_ROOT/wol/wol.c" -o "$PLUGINS_ROOT/wol/bin/wol"
-$STRIP "$PLUGINS_ROOT/wol/bin/wol"
-echo "[+] wol binary built: $(ls -lh "$PLUGINS_ROOT/wol/bin/wol" | awk '{print $5}')"
+# 5. Plugins on the shared headers in common/: build_c <dir> <source> <binary> [link flags]
+build_c() {
+    echo "[*] Compiling $1..."
+    mkdir -p "$PLUGINS_ROOT/$1/bin"
+    $CC $CFLAGS -I"$PLUGINS_ROOT/common" "$PLUGINS_ROOT/$1/$2" -o "$PLUGINS_ROOT/$1/bin/$3" ${4:-}
+    $STRIP "$PLUGINS_ROOT/$1/bin/$3"
+    echo "[+] $3 binary built: $(ls -lh "$PLUGINS_ROOT/$1/bin/$3" | awk '{print $5}')"
+}
+build_c wol wol.c wol
+build_c sony-bravia sony_bravia.c sony_bravia
+build_c samsung-tv samsung_tv.c samsung_tv "$BEARSSL_LINK"
+build_c lg-webos lg_webos.c lg_webos "$BEARSSL_LINK"
 
 # 6. android-tv
 echo "[*] Compiling android-tv with the Hub's BearSSL..."
@@ -99,7 +105,8 @@ echo "[+] android_tv binary built: $(ls -lh "$PLUGINS_ROOT/android-tv/bin/androi
 
 # The Hub's stock uClibc 0.9.30 has no __ctype_*_loc: a binary importing one (any <ctype.h>
 # call) starts, then dies at that first call, as android-tv did on PIN entry
-for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page switch2-wake/bin/switch2_wake wol/bin/wol android-tv/bin/android_tv; do
+for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page switch2-wake/bin/switch2_wake wol/bin/wol \
+         sony-bravia/bin/sony_bravia samsung-tv/bin/samsung_tv lg-webos/bin/lg_webos android-tv/bin/android_tv; do
     if mips-buildroot-linux-uclibc-readelf --dyn-syms -W "$PLUGINS_ROOT/$b" | grep -q '__ctype_'; then
         echo "[!] $b imports __ctype_* symbols the Hub's uClibc lacks (drop the <ctype.h> calls)" >&2
         exit 1
@@ -119,7 +126,7 @@ done
 # 7. Package into dist/. The archives are reproducible (sorted names, no times or owners), so
 # the same binaries always give the same SHA-256.
 mkdir -p "$PLUGINS_ROOT/dist"
-for p in roku-ecp ps5-wake switch2-wake wol android-tv; do
+for p in roku-ecp ps5-wake switch2-wake wol sony-bravia samsung-tv lg-webos android-tv; do
     echo "[*] Packaging $p..."
     tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
         -cf - -C "$PLUGINS_ROOT/${p}" manifest.json bin/ | gzip -n -9 > "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz"

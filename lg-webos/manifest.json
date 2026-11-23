@@ -1,0 +1,270 @@
+{
+  "id": "lg-webos",
+  "name": "LG webOS TV",
+  "version": "1.0.0",
+  "author": "Harmony-NG Community",
+  "description": "Control LG webOS TVs (2014 and later) over the local network: remote buttons, volume, channels, apps, inputs, text, and Wake-on-LAN for PowerOn.",
+  "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/lg-webos",
+  "entrypoint": "bin/lg_webos",
+  "requires_libs": [
+    "libbearssl.so.0"
+  ],
+  "files": [
+    "manifest.json",
+    "bin/lg_webos"
+  ],
+  "pairing": {
+    "supported": true,
+    "type": "confirm",
+    "timeout_s": 45,
+    "title": "Pair LG TV",
+    "button_label": "Pair with TV",
+    "description": "The TV asks whether to accept the Hub as a remote control.",
+    "host_label": "TV IP Address",
+    "instructions": "Turn the TV on, press Pair with TV, then choose Accept on the TV screen."
+  },
+  "device_definition": {
+    "device_type": "lgwebos",
+    "display_name": "LG webOS TV",
+    "config_fields": [
+      {
+        "key": "host",
+        "label": "IP Address",
+        "type": "string",
+        "placeholder": "192.168.1.80"
+      },
+      {
+        "key": "mac",
+        "label": "MAC Address (optional, for Wake-on-LAN)",
+        "type": "string",
+        "placeholder": "learned while the TV is on"
+      }
+    ],
+    "default_commands": [
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:lg-webos:PowerOn"
+      },
+      {
+        "name": "PowerOff",
+        "keyCode": "PLUGIN:lg-webos:PowerOff"
+      },
+      {
+        "name": "PowerToggle",
+        "keyCode": "PLUGIN:lg-webos:PowerToggle"
+      },
+      {
+        "name": "Connect",
+        "keyCode": "PLUGIN:lg-webos:Connect"
+      },
+      {
+        "name": "Disconnect",
+        "keyCode": "PLUGIN:lg-webos:Disconnect"
+      },
+      {
+        "name": "Home",
+        "keyCode": "PLUGIN:lg-webos:Home"
+      },
+      {
+        "name": "Back",
+        "keyCode": "PLUGIN:lg-webos:Back"
+      },
+      {
+        "name": "Select",
+        "keyCode": "PLUGIN:lg-webos:Select"
+      },
+      {
+        "name": "DirectionUp",
+        "keyCode": "PLUGIN:lg-webos:Up"
+      },
+      {
+        "name": "DirectionDown",
+        "keyCode": "PLUGIN:lg-webos:Down"
+      },
+      {
+        "name": "DirectionLeft",
+        "keyCode": "PLUGIN:lg-webos:Left"
+      },
+      {
+        "name": "DirectionRight",
+        "keyCode": "PLUGIN:lg-webos:Right"
+      },
+      {
+        "name": "VolumeUp",
+        "keyCode": "PLUGIN:lg-webos:VolumeUp"
+      },
+      {
+        "name": "VolumeDown",
+        "keyCode": "PLUGIN:lg-webos:VolumeDown"
+      },
+      {
+        "name": "VolumeMute",
+        "keyCode": "PLUGIN:lg-webos:VolumeMute"
+      },
+      {
+        "name": "Volume",
+        "keyCode": "PLUGIN:lg-webos:Volume",
+        "range": [
+          0,
+          100
+        ]
+      },
+      {
+        "name": "ChannelUp",
+        "keyCode": "PLUGIN:lg-webos:ChannelUp"
+      },
+      {
+        "name": "ChannelDown",
+        "keyCode": "PLUGIN:lg-webos:ChannelDown"
+      },
+      {
+        "name": "Menu",
+        "keyCode": "PLUGIN:lg-webos:Menu"
+      },
+      {
+        "name": "Info",
+        "keyCode": "PLUGIN:lg-webos:Info"
+      },
+      {
+        "name": "Guide",
+        "keyCode": "PLUGIN:lg-webos:Guide"
+      },
+      {
+        "name": "Play",
+        "keyCode": "PLUGIN:lg-webos:Play"
+      },
+      {
+        "name": "Pause",
+        "keyCode": "PLUGIN:lg-webos:Pause"
+      },
+      {
+        "name": "Stop",
+        "keyCode": "PLUGIN:lg-webos:Stop"
+      },
+      {
+        "name": "FastForward",
+        "keyCode": "PLUGIN:lg-webos:FastForward"
+      },
+      {
+        "name": "Rewind",
+        "keyCode": "PLUGIN:lg-webos:Rewind"
+      },
+      {
+        "name": "Record",
+        "keyCode": "PLUGIN:lg-webos:Record"
+      },
+      {
+        "name": "0",
+        "keyCode": "PLUGIN:lg-webos:0"
+      },
+      {
+        "name": "1",
+        "keyCode": "PLUGIN:lg-webos:1"
+      },
+      {
+        "name": "2",
+        "keyCode": "PLUGIN:lg-webos:2"
+      },
+      {
+        "name": "3",
+        "keyCode": "PLUGIN:lg-webos:3"
+      },
+      {
+        "name": "4",
+        "keyCode": "PLUGIN:lg-webos:4"
+      },
+      {
+        "name": "5",
+        "keyCode": "PLUGIN:lg-webos:5"
+      },
+      {
+        "name": "6",
+        "keyCode": "PLUGIN:lg-webos:6"
+      },
+      {
+        "name": "7",
+        "keyCode": "PLUGIN:lg-webos:7"
+      },
+      {
+        "name": "8",
+        "keyCode": "PLUGIN:lg-webos:8"
+      },
+      {
+        "name": "9",
+        "keyCode": "PLUGIN:lg-webos:9"
+      },
+      {
+        "name": "Red",
+        "keyCode": "PLUGIN:lg-webos:Red"
+      },
+      {
+        "name": "Green",
+        "keyCode": "PLUGIN:lg-webos:Green"
+      },
+      {
+        "name": "Yellow",
+        "keyCode": "PLUGIN:lg-webos:Yellow"
+      },
+      {
+        "name": "Blue",
+        "keyCode": "PLUGIN:lg-webos:Blue"
+      },
+      {
+        "name": "Input",
+        "keyCode": "PLUGIN:lg-webos:Input"
+      },
+      {
+        "name": "HDMI 1",
+        "keyCode": "PLUGIN:lg-webos:HDMI 1"
+      },
+      {
+        "name": "HDMI 2",
+        "keyCode": "PLUGIN:lg-webos:HDMI 2"
+      },
+      {
+        "name": "HDMI 3",
+        "keyCode": "PLUGIN:lg-webos:HDMI 3"
+      },
+      {
+        "name": "HDMI 4",
+        "keyCode": "PLUGIN:lg-webos:HDMI 4"
+      },
+      {
+        "name": "Exit",
+        "keyCode": "PLUGIN:lg-webos:Exit"
+      },
+      {
+        "name": "Captions",
+        "keyCode": "PLUGIN:lg-webos:Captions"
+      },
+      {
+        "name": "Settings",
+        "keyCode": "PLUGIN:lg-webos:QuickSettings"
+      },
+      {
+        "name": "YouTube",
+        "keyCode": "PLUGIN:lg-webos:app:youtube"
+      },
+      {
+        "name": "Netflix",
+        "keyCode": "PLUGIN:lg-webos:app:netflix"
+      },
+      {
+        "name": "Prime Video",
+        "keyCode": "PLUGIN:lg-webos:app:prime"
+      },
+      {
+        "name": "Disney+",
+        "keyCode": "PLUGIN:lg-webos:app:disney"
+      },
+      {
+        "name": "Spotify",
+        "keyCode": "PLUGIN:lg-webos:app:spotify"
+      },
+      {
+        "name": "Live TV",
+        "keyCode": "PLUGIN:lg-webos:app:livetv"
+      }
+    ]
+  }
+}

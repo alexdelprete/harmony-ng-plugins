@@ -1,0 +1,65 @@
+{
+  "id": "my-plugin",
+  "name": "My Plugin",
+  "version": "0.1.0",
+  "author": "Your Name",
+  "description": "Template of a Harmony-NG plugin: one HTTP POST per key to the device.",
+  "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/template",
+  "entrypoint": "bin/my_plugin",
+  "files": [
+    "manifest.json",
+    "bin/my_plugin"
+  ],
+  "pairing": {
+    "supported": true,
+    "type": "listen",
+    "requires_host": true,
+    "timeout_s": 5,
+    "title": "Check the device",
+    "button_label": "Check",
+    "host_label": "Device IP Address",
+    "instructions": "Turn the device on, then press Check."
+  },
+  "device_definition": {
+    "device_type": "my_device",
+    "display_name": "My Device",
+    "config_fields": [
+      {
+        "key": "host",
+        "label": "IP Address",
+        "type": "string",
+        "placeholder": "192.168.1.50"
+      },
+      {
+        "key": "port",
+        "label": "Port",
+        "type": "number",
+        "default": 8080
+      },
+      {
+        "key": "mac",
+        "label": "MAC Address (optional, for Wake-on-LAN)",
+        "type": "string",
+        "placeholder": "learned while the device is on"
+      }
+    ],
+    "default_commands": [
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:my-plugin:PowerOn"
+      },
+      {
+        "name": "VolumeUp",
+        "keyCode": "PLUGIN:my-plugin:VolumeUp"
+      },
+      {
+        "name": "VolumeDown",
+        "keyCode": "PLUGIN:my-plugin:VolumeDown"
+      },
+      {
+        "name": "Home",
+        "keyCode": "PLUGIN:my-plugin:Home"
+      }
+    ]
+  }
+}
