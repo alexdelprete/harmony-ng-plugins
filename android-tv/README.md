@@ -19,8 +19,8 @@ Designed for **100% protocol and feature parity** with [`androidtvremote2`](http
 
 | Port | Transport | Purpose |
 |---|---|---|
-| `6466` | TLS (Polo protocol) | Initial pairing handshake, `OuterMessage` negotiation, and PIN verification. |
-| `6467` | Authenticated TLS | Runtime command injection (`RemoteKeyInject`), text input (`RemoteImeBatchEdit`), app launches (`RemoteAppLinkLaunchRequest`), and session heartbeats. |
+| `6467` | TLS (Polo protocol) | Initial pairing handshake, `OuterMessage` negotiation, and PIN verification. |
+| `6466` | Authenticated TLS | Runtime command injection (`RemoteKeyInject`), text input (`RemoteImeBatchEdit`), app launches (`RemoteAppLinkLaunchRequest`), and session heartbeats. |
 
 ---
 
@@ -30,10 +30,10 @@ Designed for **100% protocol and feature parity** with [`androidtvremote2`](http
 2. In the Harmony-NG WebUI (**Devices Studio**), click **Add Device** and select **Android TV / Google TV (Plugin)**.
 3. Enter your TV's local IP address (e.g. `192.168.1.60`).
 4. Click **Pair with TV** (or send the `Pair` command):
-   - The plugin initiates the pairing handshake on port `6466`.
+   - The plugin initiates the pairing handshake on port `6467`.
    - Your TV screen displays a **6-character PIN code** (e.g. `B83F1A`).
    - Enter the PIN code when prompted in the WebUI.
-5. Once verified, the credentials are saved on the Hub in `/data/harmony/plugins/android-tv/state.txt`. All future commands route through authenticated TLS port `6467`.
+5. Once verified, the credentials are saved on the Hub in `/data/harmony/plugin-data/android-tv/state.txt`. All future commands route through authenticated TLS port `6466`.
 
 ---
 
