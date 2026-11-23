@@ -65,7 +65,14 @@ cp "$PLUGINS_ROOT/ps5-wake/ps5_wake_helper.sh" "$PLUGINS_ROOT/ps5-wake/bin/ps5_w
 chmod +x "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake_helper.sh"
 echo "[+] ps5_wake binary built: $(ls -lh "$PLUGINS_ROOT/ps5-wake/bin/ps5_wake" | awk '{print $5}')"
 
-# 4. android-tv
+# 4. switch2-wake
+echo "[*] Compiling switch2-wake..."
+mkdir -p "$PLUGINS_ROOT/switch2-wake/bin"
+$CC $CFLAGS "$PLUGINS_ROOT/switch2-wake/switch2_wake.c" -o "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake"
+$STRIP "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake"
+echo "[+] switch2_wake binary built: $(ls -lh "$PLUGINS_ROOT/switch2-wake/bin/switch2_wake" | awk '{print $5}')"
+
+# 5. android-tv
 echo "[*] Compiling android-tv with BearSSL..."
 mkdir -p "$PLUGINS_ROOT/android-tv/bin"
 $CC $CFLAGS -I"$BEARSSL_DIR/inc" "$PLUGINS_ROOT/android-tv/android_tv.c" "$BEARSSL_DIR/libbearssl.a" -o "$PLUGINS_ROOT/android-tv/bin/android_tv"
@@ -74,24 +81,24 @@ echo "[+] android_tv binary built: $(ls -lh "$PLUGINS_ROOT/android-tv/bin/androi
 
 # The Hub's stock uClibc 0.9.30 has no __ctype_*_loc: a binary importing one (any <ctype.h>
 # call) starts, then dies at that first call, as android-tv did on PIN entry
-for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page android-tv/bin/android_tv; do
+for b in roku-ecp/bin/roku_ecp ps5-wake/bin/ps5_wake ps5-wake/bin/ps5_page switch2-wake/bin/switch2_wake android-tv/bin/android_tv; do
     if mips-buildroot-linux-uclibc-readelf --dyn-syms -W "$PLUGINS_ROOT/$b" | grep -q '__ctype_'; then
         echo "[!] $b imports __ctype_* symbols the Hub's uClibc lacks (drop the <ctype.h> calls)" >&2
         exit 1
     fi
 done
 
-# 5. Package into dist/. The archives are reproducible (sorted names, no times or owners), so
+# 6. Package into dist/. The archives are reproducible (sorted names, no times or owners), so
 # the same binaries always give the same SHA-256.
 mkdir -p "$PLUGINS_ROOT/dist"
-for p in roku-ecp ps5-wake android-tv; do
+for p in roku-ecp ps5-wake switch2-wake android-tv; do
     echo "[*] Packaging $p..."
     tar --sort=name --mtime='@0' --owner=0 --group=0 --numeric-owner \
         -cf - -C "$PLUGINS_ROOT/${p}" manifest.json bin/ | gzip -n -9 > "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz"
     echo "[+] Created dist/${p}-plugin.tar.gz ($(ls -lh "$PLUGINS_ROOT/dist/${p}-plugin.tar.gz" | awk '{print $5}'))"
 done
 
-# 6. repository.json from the manifests, with the SHA-256 of each archive just built (for local
+# 7. repository.json from the manifests, with the SHA-256 of each archive just built (for local
 # testing: the release workflow rewrites it from the published release assets)
 python3 "$PLUGINS_ROOT/scripts/gen_repository.py" "$PLUGINS_ROOT" "$PLUGINS_ROOT/dist"
 echo "=== All plugins compiled and packaged successfully! ==="

@@ -45,4 +45,12 @@ gcc -Wall -Werror -Wno-unused-function "$ROOT/ps5-wake/test_ps5_wake.c" -o "$WOR
 gcc -Wall -Werror "$ROOT/ps5-wake/ps5_page.c" -o "$WORK/ps5_page"
 sh -n "$ROOT/ps5-wake/ps5_wake_helper.sh"
 
+echo "[*] switch2-wake self-check"
+gcc -Wall -Werror -Wno-unused-function "$ROOT/switch2-wake/test_switch2_wake.c" -o "$WORK/switch2_selfcheck"
+"$WORK/switch2_selfcheck"
+echo "[*] switch2-wake fake hub_btstack"
+mkdir -p "$WORK/switch2_e2e"
+gcc -Wall -Werror -DHUB_BTSTACK_SOCK="\"$WORK/switch2_e2e/bt.sock\"" "$ROOT/switch2-wake/switch2_wake.c" -o "$WORK/switch2_wake"
+timeout 60 python3 "$ROOT/switch2-wake/test_fake_btstack.py" "$WORK/switch2_wake" "$WORK/switch2_e2e"
+
 echo "[+] Host tests passed"
