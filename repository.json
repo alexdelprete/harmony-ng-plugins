@@ -6,12 +6,12 @@
     {
       "id": "android-tv",
       "name": "Android TV / Google TV Remote (v2)",
-      "version": "1.3.0",
+      "version": "1.4.0",
       "author": "Harmony-NG Community",
-      "description": "Control Android TV and Google TV devices over local network via Google TV Remote protocol v2 (TLS/PIN Pairing)",
+      "description": "Control Android TV and Google TV devices over local network via Google TV Remote protocol v2 (TLS/PIN Pairing). PowerOn wakes a TV off the network with Wake-on-LAN.",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/android-tv",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/android-tv-v1.3.0/android-tv-plugin.tar.gz",
-      "sha256": "3737fbfa33f0394559a0539fe329abdfc50d40bb6c40489787f1108567a567b9",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/android-tv-v1.4.0/android-tv-plugin.tar.gz",
+      "sha256": "67c5601edf2e9f4805f735c942530e942ceecf9d7cd29316abd2c97d5c14e471",
       "device_definition": {
         "device_type": "androidtv",
         "display_name": "Android TV / Google TV",
@@ -21,6 +21,12 @@
             "label": "IP Address",
             "type": "string",
             "placeholder": "192.168.1.60"
+          },
+          {
+            "key": "mac",
+            "label": "MAC Address (optional, for Wake-on-LAN)",
+            "type": "string",
+            "placeholder": "learned while the TV is on"
           }
         ],
         "default_commands": [
@@ -35,6 +41,14 @@
           {
             "name": "PowerOff",
             "keyCode": "PLUGIN:android-tv:PowerOff"
+          },
+          {
+            "name": "Connect",
+            "keyCode": "PLUGIN:android-tv:Connect"
+          },
+          {
+            "name": "Disconnect",
+            "keyCode": "PLUGIN:android-tv:Disconnect"
           },
           {
             "name": "Home",
@@ -268,6 +282,260 @@
       }
     },
     {
+      "id": "lg-webos",
+      "name": "LG webOS TV",
+      "version": "1.0.0",
+      "author": "Harmony-NG Community",
+      "description": "Control LG webOS TVs (2014 and later) over the local network: remote buttons, volume, channels, apps, inputs, text, and Wake-on-LAN for PowerOn.",
+      "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/lg-webos",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/lg-webos-v1.0.0/lg-webos-plugin.tar.gz",
+      "sha256": "1cac854a0d43a1528fb891f4156a97bf284e602af244881f5e105fb8eb405b3a",
+      "device_definition": {
+        "device_type": "lgwebos",
+        "display_name": "LG webOS TV",
+        "config_fields": [
+          {
+            "key": "host",
+            "label": "IP Address",
+            "type": "string",
+            "placeholder": "192.168.1.80"
+          },
+          {
+            "key": "mac",
+            "label": "MAC Address (optional, for Wake-on-LAN)",
+            "type": "string",
+            "placeholder": "learned while the TV is on"
+          }
+        ],
+        "default_commands": [
+          {
+            "name": "PowerOn",
+            "keyCode": "PLUGIN:lg-webos:PowerOn"
+          },
+          {
+            "name": "PowerOff",
+            "keyCode": "PLUGIN:lg-webos:PowerOff"
+          },
+          {
+            "name": "PowerToggle",
+            "keyCode": "PLUGIN:lg-webos:PowerToggle"
+          },
+          {
+            "name": "Connect",
+            "keyCode": "PLUGIN:lg-webos:Connect"
+          },
+          {
+            "name": "Disconnect",
+            "keyCode": "PLUGIN:lg-webos:Disconnect"
+          },
+          {
+            "name": "Home",
+            "keyCode": "PLUGIN:lg-webos:Home"
+          },
+          {
+            "name": "Back",
+            "keyCode": "PLUGIN:lg-webos:Back"
+          },
+          {
+            "name": "Select",
+            "keyCode": "PLUGIN:lg-webos:Select"
+          },
+          {
+            "name": "DirectionUp",
+            "keyCode": "PLUGIN:lg-webos:Up"
+          },
+          {
+            "name": "DirectionDown",
+            "keyCode": "PLUGIN:lg-webos:Down"
+          },
+          {
+            "name": "DirectionLeft",
+            "keyCode": "PLUGIN:lg-webos:Left"
+          },
+          {
+            "name": "DirectionRight",
+            "keyCode": "PLUGIN:lg-webos:Right"
+          },
+          {
+            "name": "VolumeUp",
+            "keyCode": "PLUGIN:lg-webos:VolumeUp"
+          },
+          {
+            "name": "VolumeDown",
+            "keyCode": "PLUGIN:lg-webos:VolumeDown"
+          },
+          {
+            "name": "VolumeMute",
+            "keyCode": "PLUGIN:lg-webos:VolumeMute"
+          },
+          {
+            "name": "Volume",
+            "keyCode": "PLUGIN:lg-webos:Volume",
+            "range": [
+              0,
+              100
+            ]
+          },
+          {
+            "name": "ChannelUp",
+            "keyCode": "PLUGIN:lg-webos:ChannelUp"
+          },
+          {
+            "name": "ChannelDown",
+            "keyCode": "PLUGIN:lg-webos:ChannelDown"
+          },
+          {
+            "name": "Menu",
+            "keyCode": "PLUGIN:lg-webos:Menu"
+          },
+          {
+            "name": "Info",
+            "keyCode": "PLUGIN:lg-webos:Info"
+          },
+          {
+            "name": "Guide",
+            "keyCode": "PLUGIN:lg-webos:Guide"
+          },
+          {
+            "name": "Play",
+            "keyCode": "PLUGIN:lg-webos:Play"
+          },
+          {
+            "name": "Pause",
+            "keyCode": "PLUGIN:lg-webos:Pause"
+          },
+          {
+            "name": "Stop",
+            "keyCode": "PLUGIN:lg-webos:Stop"
+          },
+          {
+            "name": "FastForward",
+            "keyCode": "PLUGIN:lg-webos:FastForward"
+          },
+          {
+            "name": "Rewind",
+            "keyCode": "PLUGIN:lg-webos:Rewind"
+          },
+          {
+            "name": "Record",
+            "keyCode": "PLUGIN:lg-webos:Record"
+          },
+          {
+            "name": "0",
+            "keyCode": "PLUGIN:lg-webos:0"
+          },
+          {
+            "name": "1",
+            "keyCode": "PLUGIN:lg-webos:1"
+          },
+          {
+            "name": "2",
+            "keyCode": "PLUGIN:lg-webos:2"
+          },
+          {
+            "name": "3",
+            "keyCode": "PLUGIN:lg-webos:3"
+          },
+          {
+            "name": "4",
+            "keyCode": "PLUGIN:lg-webos:4"
+          },
+          {
+            "name": "5",
+            "keyCode": "PLUGIN:lg-webos:5"
+          },
+          {
+            "name": "6",
+            "keyCode": "PLUGIN:lg-webos:6"
+          },
+          {
+            "name": "7",
+            "keyCode": "PLUGIN:lg-webos:7"
+          },
+          {
+            "name": "8",
+            "keyCode": "PLUGIN:lg-webos:8"
+          },
+          {
+            "name": "9",
+            "keyCode": "PLUGIN:lg-webos:9"
+          },
+          {
+            "name": "Red",
+            "keyCode": "PLUGIN:lg-webos:Red"
+          },
+          {
+            "name": "Green",
+            "keyCode": "PLUGIN:lg-webos:Green"
+          },
+          {
+            "name": "Yellow",
+            "keyCode": "PLUGIN:lg-webos:Yellow"
+          },
+          {
+            "name": "Blue",
+            "keyCode": "PLUGIN:lg-webos:Blue"
+          },
+          {
+            "name": "Input",
+            "keyCode": "PLUGIN:lg-webos:Input"
+          },
+          {
+            "name": "HDMI 1",
+            "keyCode": "PLUGIN:lg-webos:HDMI 1"
+          },
+          {
+            "name": "HDMI 2",
+            "keyCode": "PLUGIN:lg-webos:HDMI 2"
+          },
+          {
+            "name": "HDMI 3",
+            "keyCode": "PLUGIN:lg-webos:HDMI 3"
+          },
+          {
+            "name": "HDMI 4",
+            "keyCode": "PLUGIN:lg-webos:HDMI 4"
+          },
+          {
+            "name": "Exit",
+            "keyCode": "PLUGIN:lg-webos:Exit"
+          },
+          {
+            "name": "Captions",
+            "keyCode": "PLUGIN:lg-webos:Captions"
+          },
+          {
+            "name": "Settings",
+            "keyCode": "PLUGIN:lg-webos:QuickSettings"
+          },
+          {
+            "name": "YouTube",
+            "keyCode": "PLUGIN:lg-webos:app:youtube"
+          },
+          {
+            "name": "Netflix",
+            "keyCode": "PLUGIN:lg-webos:app:netflix"
+          },
+          {
+            "name": "Prime Video",
+            "keyCode": "PLUGIN:lg-webos:app:prime"
+          },
+          {
+            "name": "Disney+",
+            "keyCode": "PLUGIN:lg-webos:app:disney"
+          },
+          {
+            "name": "Spotify",
+            "keyCode": "PLUGIN:lg-webos:app:spotify"
+          },
+          {
+            "name": "Live TV",
+            "keyCode": "PLUGIN:lg-webos:app:livetv"
+          }
+        ]
+      }
+    },
+    {
       "id": "ps5-wake",
       "name": "PlayStation 5 BT Wake",
       "version": "1.2.0",
@@ -400,6 +668,502 @@
       }
     },
     {
+      "id": "samsung-tv",
+      "name": "Samsung Smart TV (Tizen)",
+      "version": "1.0.0",
+      "author": "Harmony-NG Community",
+      "description": "Control Samsung Smart TVs (Tizen, 2016 and later) over the local network: every remote key with holds, apps, text, power state, and Wake-on-LAN for PowerOn.",
+      "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/samsung-tv",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/samsung-tv-v1.0.0/samsung-tv-plugin.tar.gz",
+      "sha256": "5b41b9224bf078e428068b6c9ffcfb62efd8dcc71acc8af210133f812f2b876f",
+      "device_definition": {
+        "device_type": "samsungtv",
+        "display_name": "Samsung Smart TV",
+        "config_fields": [
+          {
+            "key": "host",
+            "label": "IP Address",
+            "type": "string",
+            "placeholder": "192.168.1.70"
+          },
+          {
+            "key": "port",
+            "label": "Port (8002; 8001 for 2016-2017 models)",
+            "type": "number",
+            "default": 8002
+          },
+          {
+            "key": "mac",
+            "label": "MAC Address (optional, for Wake-on-LAN)",
+            "type": "string",
+            "placeholder": "learned while the TV is on"
+          }
+        ],
+        "default_commands": [
+          {
+            "name": "PowerOn",
+            "keyCode": "PLUGIN:samsung-tv:PowerOn"
+          },
+          {
+            "name": "PowerOff",
+            "keyCode": "PLUGIN:samsung-tv:PowerOff"
+          },
+          {
+            "name": "PowerToggle",
+            "keyCode": "PLUGIN:samsung-tv:PowerToggle"
+          },
+          {
+            "name": "Connect",
+            "keyCode": "PLUGIN:samsung-tv:Connect"
+          },
+          {
+            "name": "Disconnect",
+            "keyCode": "PLUGIN:samsung-tv:Disconnect"
+          },
+          {
+            "name": "Home",
+            "keyCode": "PLUGIN:samsung-tv:Home"
+          },
+          {
+            "name": "Back",
+            "keyCode": "PLUGIN:samsung-tv:Back"
+          },
+          {
+            "name": "Select",
+            "keyCode": "PLUGIN:samsung-tv:Select"
+          },
+          {
+            "name": "DirectionUp",
+            "keyCode": "PLUGIN:samsung-tv:Up"
+          },
+          {
+            "name": "DirectionDown",
+            "keyCode": "PLUGIN:samsung-tv:Down"
+          },
+          {
+            "name": "DirectionLeft",
+            "keyCode": "PLUGIN:samsung-tv:Left"
+          },
+          {
+            "name": "DirectionRight",
+            "keyCode": "PLUGIN:samsung-tv:Right"
+          },
+          {
+            "name": "VolumeUp",
+            "keyCode": "PLUGIN:samsung-tv:VolumeUp"
+          },
+          {
+            "name": "VolumeDown",
+            "keyCode": "PLUGIN:samsung-tv:VolumeDown"
+          },
+          {
+            "name": "VolumeMute",
+            "keyCode": "PLUGIN:samsung-tv:VolumeMute"
+          },
+          {
+            "name": "ChannelUp",
+            "keyCode": "PLUGIN:samsung-tv:ChannelUp"
+          },
+          {
+            "name": "ChannelDown",
+            "keyCode": "PLUGIN:samsung-tv:ChannelDown"
+          },
+          {
+            "name": "Menu",
+            "keyCode": "PLUGIN:samsung-tv:Menu"
+          },
+          {
+            "name": "Info",
+            "keyCode": "PLUGIN:samsung-tv:Info"
+          },
+          {
+            "name": "Guide",
+            "keyCode": "PLUGIN:samsung-tv:Guide"
+          },
+          {
+            "name": "Play",
+            "keyCode": "PLUGIN:samsung-tv:Play"
+          },
+          {
+            "name": "Pause",
+            "keyCode": "PLUGIN:samsung-tv:Pause"
+          },
+          {
+            "name": "Stop",
+            "keyCode": "PLUGIN:samsung-tv:Stop"
+          },
+          {
+            "name": "FastForward",
+            "keyCode": "PLUGIN:samsung-tv:FastForward"
+          },
+          {
+            "name": "Rewind",
+            "keyCode": "PLUGIN:samsung-tv:Rewind"
+          },
+          {
+            "name": "Record",
+            "keyCode": "PLUGIN:samsung-tv:Record"
+          },
+          {
+            "name": "0",
+            "keyCode": "PLUGIN:samsung-tv:0"
+          },
+          {
+            "name": "1",
+            "keyCode": "PLUGIN:samsung-tv:1"
+          },
+          {
+            "name": "2",
+            "keyCode": "PLUGIN:samsung-tv:2"
+          },
+          {
+            "name": "3",
+            "keyCode": "PLUGIN:samsung-tv:3"
+          },
+          {
+            "name": "4",
+            "keyCode": "PLUGIN:samsung-tv:4"
+          },
+          {
+            "name": "5",
+            "keyCode": "PLUGIN:samsung-tv:5"
+          },
+          {
+            "name": "6",
+            "keyCode": "PLUGIN:samsung-tv:6"
+          },
+          {
+            "name": "7",
+            "keyCode": "PLUGIN:samsung-tv:7"
+          },
+          {
+            "name": "8",
+            "keyCode": "PLUGIN:samsung-tv:8"
+          },
+          {
+            "name": "9",
+            "keyCode": "PLUGIN:samsung-tv:9"
+          },
+          {
+            "name": "Red",
+            "keyCode": "PLUGIN:samsung-tv:Red"
+          },
+          {
+            "name": "Green",
+            "keyCode": "PLUGIN:samsung-tv:Green"
+          },
+          {
+            "name": "Yellow",
+            "keyCode": "PLUGIN:samsung-tv:Yellow"
+          },
+          {
+            "name": "Blue",
+            "keyCode": "PLUGIN:samsung-tv:Blue"
+          },
+          {
+            "name": "Input",
+            "keyCode": "PLUGIN:samsung-tv:Input"
+          },
+          {
+            "name": "HDMI 1",
+            "keyCode": "PLUGIN:samsung-tv:HDMI 1"
+          },
+          {
+            "name": "HDMI 2",
+            "keyCode": "PLUGIN:samsung-tv:HDMI 2"
+          },
+          {
+            "name": "HDMI 3",
+            "keyCode": "PLUGIN:samsung-tv:HDMI 3"
+          },
+          {
+            "name": "HDMI 4",
+            "keyCode": "PLUGIN:samsung-tv:HDMI 4"
+          },
+          {
+            "name": "Exit",
+            "keyCode": "PLUGIN:samsung-tv:Exit"
+          },
+          {
+            "name": "Tools",
+            "keyCode": "PLUGIN:samsung-tv:Tools"
+          },
+          {
+            "name": "Captions",
+            "keyCode": "PLUGIN:samsung-tv:Captions"
+          },
+          {
+            "name": "LastChannel",
+            "keyCode": "PLUGIN:samsung-tv:LastChannel"
+          },
+          {
+            "name": "ChannelList",
+            "keyCode": "PLUGIN:samsung-tv:ChannelList"
+          },
+          {
+            "name": "YouTube",
+            "keyCode": "PLUGIN:samsung-tv:app:youtube"
+          },
+          {
+            "name": "Netflix",
+            "keyCode": "PLUGIN:samsung-tv:app:netflix"
+          },
+          {
+            "name": "Prime Video",
+            "keyCode": "PLUGIN:samsung-tv:app:prime"
+          },
+          {
+            "name": "Disney+",
+            "keyCode": "PLUGIN:samsung-tv:app:disney"
+          },
+          {
+            "name": "Spotify",
+            "keyCode": "PLUGIN:samsung-tv:app:spotify"
+          },
+          {
+            "name": "Apple TV",
+            "keyCode": "PLUGIN:samsung-tv:app:appletv"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sony-bravia",
+      "name": "Sony Bravia TV",
+      "version": "1.0.0",
+      "author": "Harmony-NG Community",
+      "description": "Control Sony Bravia TVs (2013 and later) with their IP control API and a pre-shared key: every remote key, power on and off, HDMI inputs, text, and Wake-on-LAN.",
+      "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/sony-bravia",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/sony-bravia-v1.0.0/sony-bravia-plugin.tar.gz",
+      "sha256": "39e703015577574cf8920ccb83d259a6225b5d5b7fab26dad95dec5b25b61404",
+      "device_definition": {
+        "device_type": "sonybravia",
+        "display_name": "Sony Bravia TV",
+        "config_fields": [
+          {
+            "key": "host",
+            "label": "IP Address",
+            "type": "string",
+            "placeholder": "192.168.1.90"
+          },
+          {
+            "key": "psk",
+            "label": "Pre-Shared Key (TV: Network > IP control)",
+            "type": "password",
+            "placeholder": "0000"
+          },
+          {
+            "key": "mac",
+            "label": "MAC Address (optional, for Wake-on-LAN)",
+            "type": "string",
+            "placeholder": "learned while the TV is on"
+          }
+        ],
+        "default_commands": [
+          {
+            "name": "PowerOn",
+            "keyCode": "PLUGIN:sony-bravia:PowerOn"
+          },
+          {
+            "name": "PowerOff",
+            "keyCode": "PLUGIN:sony-bravia:PowerOff"
+          },
+          {
+            "name": "PowerToggle",
+            "keyCode": "PLUGIN:sony-bravia:PowerToggle"
+          },
+          {
+            "name": "Home",
+            "keyCode": "PLUGIN:sony-bravia:Home"
+          },
+          {
+            "name": "Back",
+            "keyCode": "PLUGIN:sony-bravia:Back"
+          },
+          {
+            "name": "Select",
+            "keyCode": "PLUGIN:sony-bravia:Select"
+          },
+          {
+            "name": "DirectionUp",
+            "keyCode": "PLUGIN:sony-bravia:Up"
+          },
+          {
+            "name": "DirectionDown",
+            "keyCode": "PLUGIN:sony-bravia:Down"
+          },
+          {
+            "name": "DirectionLeft",
+            "keyCode": "PLUGIN:sony-bravia:Left"
+          },
+          {
+            "name": "DirectionRight",
+            "keyCode": "PLUGIN:sony-bravia:Right"
+          },
+          {
+            "name": "VolumeUp",
+            "keyCode": "PLUGIN:sony-bravia:VolumeUp"
+          },
+          {
+            "name": "VolumeDown",
+            "keyCode": "PLUGIN:sony-bravia:VolumeDown"
+          },
+          {
+            "name": "VolumeMute",
+            "keyCode": "PLUGIN:sony-bravia:VolumeMute"
+          },
+          {
+            "name": "Volume",
+            "keyCode": "PLUGIN:sony-bravia:Volume",
+            "range": [
+              0,
+              100
+            ]
+          },
+          {
+            "name": "ChannelUp",
+            "keyCode": "PLUGIN:sony-bravia:ChannelUp"
+          },
+          {
+            "name": "ChannelDown",
+            "keyCode": "PLUGIN:sony-bravia:ChannelDown"
+          },
+          {
+            "name": "Menu",
+            "keyCode": "PLUGIN:sony-bravia:Menu"
+          },
+          {
+            "name": "Info",
+            "keyCode": "PLUGIN:sony-bravia:Info"
+          },
+          {
+            "name": "Guide",
+            "keyCode": "PLUGIN:sony-bravia:Guide"
+          },
+          {
+            "name": "Play",
+            "keyCode": "PLUGIN:sony-bravia:Play"
+          },
+          {
+            "name": "Pause",
+            "keyCode": "PLUGIN:sony-bravia:Pause"
+          },
+          {
+            "name": "Stop",
+            "keyCode": "PLUGIN:sony-bravia:Stop"
+          },
+          {
+            "name": "FastForward",
+            "keyCode": "PLUGIN:sony-bravia:FastForward"
+          },
+          {
+            "name": "Rewind",
+            "keyCode": "PLUGIN:sony-bravia:Rewind"
+          },
+          {
+            "name": "Record",
+            "keyCode": "PLUGIN:sony-bravia:Record"
+          },
+          {
+            "name": "0",
+            "keyCode": "PLUGIN:sony-bravia:0"
+          },
+          {
+            "name": "1",
+            "keyCode": "PLUGIN:sony-bravia:1"
+          },
+          {
+            "name": "2",
+            "keyCode": "PLUGIN:sony-bravia:2"
+          },
+          {
+            "name": "3",
+            "keyCode": "PLUGIN:sony-bravia:3"
+          },
+          {
+            "name": "4",
+            "keyCode": "PLUGIN:sony-bravia:4"
+          },
+          {
+            "name": "5",
+            "keyCode": "PLUGIN:sony-bravia:5"
+          },
+          {
+            "name": "6",
+            "keyCode": "PLUGIN:sony-bravia:6"
+          },
+          {
+            "name": "7",
+            "keyCode": "PLUGIN:sony-bravia:7"
+          },
+          {
+            "name": "8",
+            "keyCode": "PLUGIN:sony-bravia:8"
+          },
+          {
+            "name": "9",
+            "keyCode": "PLUGIN:sony-bravia:9"
+          },
+          {
+            "name": "Red",
+            "keyCode": "PLUGIN:sony-bravia:Red"
+          },
+          {
+            "name": "Green",
+            "keyCode": "PLUGIN:sony-bravia:Green"
+          },
+          {
+            "name": "Yellow",
+            "keyCode": "PLUGIN:sony-bravia:Yellow"
+          },
+          {
+            "name": "Blue",
+            "keyCode": "PLUGIN:sony-bravia:Blue"
+          },
+          {
+            "name": "Input",
+            "keyCode": "PLUGIN:sony-bravia:Input"
+          },
+          {
+            "name": "HDMI 1",
+            "keyCode": "PLUGIN:sony-bravia:HDMI 1"
+          },
+          {
+            "name": "HDMI 2",
+            "keyCode": "PLUGIN:sony-bravia:HDMI 2"
+          },
+          {
+            "name": "HDMI 3",
+            "keyCode": "PLUGIN:sony-bravia:HDMI 3"
+          },
+          {
+            "name": "HDMI 4",
+            "keyCode": "PLUGIN:sony-bravia:HDMI 4"
+          },
+          {
+            "name": "Exit",
+            "keyCode": "PLUGIN:sony-bravia:Exit"
+          },
+          {
+            "name": "Options",
+            "keyCode": "PLUGIN:sony-bravia:Options"
+          },
+          {
+            "name": "Captions",
+            "keyCode": "PLUGIN:sony-bravia:Captions"
+          },
+          {
+            "name": "Netflix",
+            "keyCode": "PLUGIN:sony-bravia:Netflix"
+          },
+          {
+            "name": "ActionMenu",
+            "keyCode": "PLUGIN:sony-bravia:ActionMenu"
+          }
+        ]
+      }
+    },
+    {
       "id": "switch2-wake",
       "name": "Nintendo Switch 2 BT Wake",
       "version": "1.1.0",
@@ -439,6 +1203,46 @@
           {
             "name": "Wake",
             "keyCode": "PLUGIN:switch2-wake:Wake"
+          }
+        ]
+      }
+    },
+    {
+      "id": "wol",
+      "name": "Wake-on-LAN",
+      "version": "1.0.0",
+      "author": "Harmony-NG Community",
+      "description": "Turn on PCs, NAS, TVs and consoles with Wake-on-LAN. Add a Wake-on-LAN device, or give any device a command with keyCode PLUGIN:wol:<MAC>.",
+      "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/wol",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/wol-v1.0.0/wol-plugin.tar.gz",
+      "sha256": "a8d57747bda0e654245e097dc19298cd53e3f16de1c7a394514ea40d21e5c680",
+      "device_definition": {
+        "device_type": "wol",
+        "display_name": "Wake-on-LAN Device",
+        "config_fields": [
+          {
+            "key": "mac",
+            "label": "MAC Address",
+            "type": "string",
+            "placeholder": "AA:BB:CC:DD:EE:FF"
+          },
+          {
+            "key": "host",
+            "label": "IP Address (optional, for Find MAC)",
+            "type": "string",
+            "placeholder": "192.168.1.20"
+          },
+          {
+            "key": "broadcast",
+            "label": "Broadcast Address (optional)",
+            "type": "string",
+            "placeholder": "255.255.255.255"
+          }
+        ],
+        "default_commands": [
+          {
+            "name": "PowerOn",
+            "keyCode": "PLUGIN:wol:PowerOn"
           }
         ]
       }
