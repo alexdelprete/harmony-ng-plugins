@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """PlayStation Controller Bluetooth Address Extractor for Harmony-NG.
 
 Extracts the paired PlayStation console Bluetooth MAC address (host_mac)

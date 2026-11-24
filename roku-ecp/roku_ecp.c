@@ -110,7 +110,9 @@ static int send_roku_http_post(const char *ip, int port, const char *path) {
     setsockopt(s, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
 
     if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) != 0) {
-        printf("[-] roku-ecp: connect to %s:%d failed: %s\n", ip, port, strerror(errno));
+        /* SO_SNDTIMEO makes a connect that runs out of time fail with EINPROGRESS */
+        printf("[-] roku-ecp: connect to %s:%d failed: %s\n", ip, port,
+               (errno == EINPROGRESS || errno == EAGAIN) ? "timed out" : strerror(errno));
         close(s);
         return -1;
     }
