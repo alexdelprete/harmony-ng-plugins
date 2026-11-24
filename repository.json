@@ -576,12 +576,12 @@
     {
       "id": "roku-ecp",
       "name": "Roku ECP Controller",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "author": "Harmony-NG Community",
       "description": "Control Roku streaming boxes and Roku TVs over local Wi-Fi via External Control Protocol (ECP)",
       "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/roku-ecp",
-      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.2.0/roku-ecp-plugin.tar.gz",
-      "sha256": "bd5c519f0d8c61fcc371b2438c9123cabae259821b91a77463411a893c4df449",
+      "download_url": "https://github.com/iranl/harmony-ng-plugins/releases/download/roku-ecp-v1.2.1/roku-ecp-plugin.tar.gz",
+      "sha256": "c52aa3006495e89d82826e3d7c8f1ea31d780fe0f0d277e7941805697cfe74ac",
       "device_definition": {
         "device_type": "roku",
         "display_name": "Roku Player / TV",
