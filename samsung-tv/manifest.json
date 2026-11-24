@@ -1,0 +1,276 @@
+{
+  "id": "samsung-tv",
+  "name": "Samsung Smart TV (Tizen)",
+  "version": "1.0.0",
+  "author": "Harmony-NG Community",
+  "description": "Control Samsung Smart TVs (Tizen, 2016 and later) over the local network: every remote key with holds, apps, text, power state, and Wake-on-LAN for PowerOn.",
+  "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/samsung-tv",
+  "entrypoint": "bin/samsung_tv",
+  "requires_libs": [
+    "libbearssl.so.0"
+  ],
+  "files": [
+    "manifest.json",
+    "bin/samsung_tv"
+  ],
+  "pairing": {
+    "supported": true,
+    "type": "confirm",
+    "timeout_s": 45,
+    "title": "Pair Samsung TV",
+    "button_label": "Pair with TV",
+    "description": "The TV asks whether to allow the Hub as a remote control.",
+    "host_label": "TV IP Address",
+    "instructions": "Turn the TV on, press Pair with TV, then choose Allow on the TV screen."
+  },
+  "device_definition": {
+    "device_type": "samsungtv",
+    "display_name": "Samsung Smart TV",
+    "config_fields": [
+      {
+        "key": "host",
+        "label": "IP Address",
+        "type": "string",
+        "placeholder": "192.168.1.70"
+      },
+      {
+        "key": "port",
+        "label": "Port (8002; 8001 for 2016-2017 models)",
+        "type": "number",
+        "default": 8002
+      },
+      {
+        "key": "mac",
+        "label": "MAC Address (optional, for Wake-on-LAN)",
+        "type": "string",
+        "placeholder": "learned while the TV is on"
+      }
+    ],
+    "default_commands": [
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:samsung-tv:PowerOn"
+      },
+      {
+        "name": "PowerOff",
+        "keyCode": "PLUGIN:samsung-tv:PowerOff"
+      },
+      {
+        "name": "PowerToggle",
+        "keyCode": "PLUGIN:samsung-tv:PowerToggle"
+      },
+      {
+        "name": "Connect",
+        "keyCode": "PLUGIN:samsung-tv:Connect"
+      },
+      {
+        "name": "Disconnect",
+        "keyCode": "PLUGIN:samsung-tv:Disconnect"
+      },
+      {
+        "name": "Home",
+        "keyCode": "PLUGIN:samsung-tv:Home"
+      },
+      {
+        "name": "Back",
+        "keyCode": "PLUGIN:samsung-tv:Back"
+      },
+      {
+        "name": "Select",
+        "keyCode": "PLUGIN:samsung-tv:Select"
+      },
+      {
+        "name": "DirectionUp",
+        "keyCode": "PLUGIN:samsung-tv:Up"
+      },
+      {
+        "name": "DirectionDown",
+        "keyCode": "PLUGIN:samsung-tv:Down"
+      },
+      {
+        "name": "DirectionLeft",
+        "keyCode": "PLUGIN:samsung-tv:Left"
+      },
+      {
+        "name": "DirectionRight",
+        "keyCode": "PLUGIN:samsung-tv:Right"
+      },
+      {
+        "name": "VolumeUp",
+        "keyCode": "PLUGIN:samsung-tv:VolumeUp"
+      },
+      {
+        "name": "VolumeDown",
+        "keyCode": "PLUGIN:samsung-tv:VolumeDown"
+      },
+      {
+        "name": "VolumeMute",
+        "keyCode": "PLUGIN:samsung-tv:VolumeMute"
+      },
+      {
+        "name": "ChannelUp",
+        "keyCode": "PLUGIN:samsung-tv:ChannelUp"
+      },
+      {
+        "name": "ChannelDown",
+        "keyCode": "PLUGIN:samsung-tv:ChannelDown"
+      },
+      {
+        "name": "Menu",
+        "keyCode": "PLUGIN:samsung-tv:Menu"
+      },
+      {
+        "name": "Info",
+        "keyCode": "PLUGIN:samsung-tv:Info"
+      },
+      {
+        "name": "Guide",
+        "keyCode": "PLUGIN:samsung-tv:Guide"
+      },
+      {
+        "name": "Play",
+        "keyCode": "PLUGIN:samsung-tv:Play"
+      },
+      {
+        "name": "Pause",
+        "keyCode": "PLUGIN:samsung-tv:Pause"
+      },
+      {
+        "name": "Stop",
+        "keyCode": "PLUGIN:samsung-tv:Stop"
+      },
+      {
+        "name": "FastForward",
+        "keyCode": "PLUGIN:samsung-tv:FastForward"
+      },
+      {
+        "name": "Rewind",
+        "keyCode": "PLUGIN:samsung-tv:Rewind"
+      },
+      {
+        "name": "Record",
+        "keyCode": "PLUGIN:samsung-tv:Record"
+      },
+      {
+        "name": "0",
+        "keyCode": "PLUGIN:samsung-tv:0"
+      },
+      {
+        "name": "1",
+        "keyCode": "PLUGIN:samsung-tv:1"
+      },
+      {
+        "name": "2",
+        "keyCode": "PLUGIN:samsung-tv:2"
+      },
+      {
+        "name": "3",
+        "keyCode": "PLUGIN:samsung-tv:3"
+      },
+      {
+        "name": "4",
+        "keyCode": "PLUGIN:samsung-tv:4"
+      },
+      {
+        "name": "5",
+        "keyCode": "PLUGIN:samsung-tv:5"
+      },
+      {
+        "name": "6",
+        "keyCode": "PLUGIN:samsung-tv:6"
+      },
+      {
+        "name": "7",
+        "keyCode": "PLUGIN:samsung-tv:7"
+      },
+      {
+        "name": "8",
+        "keyCode": "PLUGIN:samsung-tv:8"
+      },
+      {
+        "name": "9",
+        "keyCode": "PLUGIN:samsung-tv:9"
+      },
+      {
+        "name": "Red",
+        "keyCode": "PLUGIN:samsung-tv:Red"
+      },
+      {
+        "name": "Green",
+        "keyCode": "PLUGIN:samsung-tv:Green"
+      },
+      {
+        "name": "Yellow",
+        "keyCode": "PLUGIN:samsung-tv:Yellow"
+      },
+      {
+        "name": "Blue",
+        "keyCode": "PLUGIN:samsung-tv:Blue"
+      },
+      {
+        "name": "Input",
+        "keyCode": "PLUGIN:samsung-tv:Input"
+      },
+      {
+        "name": "HDMI 1",
+        "keyCode": "PLUGIN:samsung-tv:HDMI 1"
+      },
+      {
+        "name": "HDMI 2",
+        "keyCode": "PLUGIN:samsung-tv:HDMI 2"
+      },
+      {
+        "name": "HDMI 3",
+        "keyCode": "PLUGIN:samsung-tv:HDMI 3"
+      },
+      {
+        "name": "HDMI 4",
+        "keyCode": "PLUGIN:samsung-tv:HDMI 4"
+      },
+      {
+        "name": "Exit",
+        "keyCode": "PLUGIN:samsung-tv:Exit"
+      },
+      {
+        "name": "Tools",
+        "keyCode": "PLUGIN:samsung-tv:Tools"
+      },
+      {
+        "name": "Captions",
+        "keyCode": "PLUGIN:samsung-tv:Captions"
+      },
+      {
+        "name": "LastChannel",
+        "keyCode": "PLUGIN:samsung-tv:LastChannel"
+      },
+      {
+        "name": "ChannelList",
+        "keyCode": "PLUGIN:samsung-tv:ChannelList"
+      },
+      {
+        "name": "YouTube",
+        "keyCode": "PLUGIN:samsung-tv:app:youtube"
+      },
+      {
+        "name": "Netflix",
+        "keyCode": "PLUGIN:samsung-tv:app:netflix"
+      },
+      {
+        "name": "Prime Video",
+        "keyCode": "PLUGIN:samsung-tv:app:prime"
+      },
+      {
+        "name": "Disney+",
+        "keyCode": "PLUGIN:samsung-tv:app:disney"
+      },
+      {
+        "name": "Spotify",
+        "keyCode": "PLUGIN:samsung-tv:app:spotify"
+      },
+      {
+        "name": "Apple TV",
+        "keyCode": "PLUGIN:samsung-tv:app:appletv"
+      }
+    ]
+  }
+}

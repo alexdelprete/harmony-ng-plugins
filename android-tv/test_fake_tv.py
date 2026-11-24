@@ -54,6 +54,7 @@ class FakeTV:
     def __init__(self):
         self.msgs = queue.Queue()       # (session number, top field, payload)
         self.sessions = 0
+        self.ended = 0                  # number of the last session the plugin closed
         self.conn = None
         self.silent = False             # stop pinging
         self.error_on_key = None        # keycode that makes the TV answer with RemoteError
@@ -92,6 +93,7 @@ class FakeTV:
                     conn.sendall(ERROR)
         except (EOFError, OSError, ssl.SSLError, IndexError):
             pass
+        self.ended = n
 
     def ping_loop(self):
         while True:
@@ -117,6 +119,9 @@ class FakeTV:
                 continue
             return m
         return None
+
+    def conn_closed(self):
+        return self.ended == self.sessions
 
     def drain(self):
         while not self.msgs.empty():
@@ -227,6 +232,31 @@ try:
             pass
     check('burst of 50 sends returns at once', time.time() - t0 < 0.5)
     time.sleep(1.0)
+    tv.drain()
+
+    # Connect / Disconnect: the control session alone, no key sent
+    send('Home')
+    tv.next()
+    send('Disconnect')
+    time.sleep(0.5)
+    check('Disconnect closes the session', tv.conn_closed())
+    sessions = tv.sessions
+    send('Connect')
+    time.sleep(0.8)
+    check('Connect opens a session and sends no key', tv.sessions == sessions + 1 and tv.next(0.5) is None)
+    send('Connect', 'release')
+    send('Connect')
+    time.sleep(0.5)
+    check('Connect while connected keeps the session', tv.sessions == sessions + 1)
+    send('Home')
+    m = tv.next()
+    check('the next key uses the session Connect opened', key(m) == (3, 3) and m[0] == sessions + 1)
+    send('PowerOn', 'press')
+    send('PowerOn', 'release')
+    m = tv.next()
+    # keycode 224 is a two-byte varint (e0 01): key() reads one-byte codes only
+    check('PowerOn on a TV that answers: one wake key (224)',
+          m is not None and m[1] == 10 and m[2][2:7] == b'\x08\xe0\x01\x10\x03' and tv.next(0.5) is None)
     tv.drain()
 
     # another device answering on the TV's address with a different key is refused

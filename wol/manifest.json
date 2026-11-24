@@ -1,0 +1,54 @@
+{
+  "id": "wol",
+  "name": "Wake-on-LAN",
+  "version": "1.0.0",
+  "author": "Harmony-NG Community",
+  "description": "Turn on PCs, NAS, TVs and consoles with Wake-on-LAN. Add a Wake-on-LAN device, or give any device a command with keyCode PLUGIN:wol:<MAC>.",
+  "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/wol",
+  "entrypoint": "bin/wol",
+  "files": [
+    "manifest.json",
+    "bin/wol"
+  ],
+  "pairing": {
+    "supported": true,
+    "type": "listen",
+    "requires_host": true,
+    "timeout_s": 5,
+    "title": "Find the MAC address",
+    "button_label": "Find MAC",
+    "description": "The Hub looks up the MAC address of the device at this IP address.",
+    "host_label": "Device IP Address",
+    "instructions": "Turn the device on (it must answer on the network), then press Find MAC."
+  },
+  "device_definition": {
+    "device_type": "wol",
+    "display_name": "Wake-on-LAN Device",
+    "config_fields": [
+      {
+        "key": "mac",
+        "label": "MAC Address",
+        "type": "string",
+        "placeholder": "AA:BB:CC:DD:EE:FF"
+      },
+      {
+        "key": "host",
+        "label": "IP Address (optional, for Find MAC)",
+        "type": "string",
+        "placeholder": "192.168.1.20"
+      },
+      {
+        "key": "broadcast",
+        "label": "Broadcast Address (optional)",
+        "type": "string",
+        "placeholder": "255.255.255.255"
+      }
+    ],
+    "default_commands": [
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:wol:PowerOn"
+      }
+    ]
+  }
+}

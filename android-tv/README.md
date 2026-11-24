@@ -10,7 +10,7 @@ Designed for **100% protocol and feature parity** with [`androidtvremote2`](http
 
 - **Zero ADB Dependency**: Connects directly to Google's official Android TV Remote Service on TLS ports `6466` and `6467`. No ADB debugging, no developer options, and no ADB server background processes.
 - **Direct Wire Protobufs**: Nanosecond C-level Protocol Buffer packet serialization for immediate tactile response on Harmony remotes.
-- **Embedded BearSSL TLS**: Self-contained TLS 1.2 client engine. Each Hub makes its own RSA key and certificate on the plugin's first start (one time, can take a few minutes on the Hub) and keeps them in `/data/harmony/plugin-data/android-tv/`.
+- **The Hub's BearSSL**: TLS 1.2 through the firmware's shared `/data/harmony/lib/libbearssl.so.0` (`requires_libs`: the Hub refuses the install on firmware without it, update the Hub first). The plugin is 34 KB instead of 100 KB with its own copy. Each Hub makes its own RSA key and certificate on the plugin's first start (one time, can take a few minutes on the Hub) and keeps them in `/data/harmony/plugin-data/android-tv/`.
 - **Bi-Directional Pairing**: Interactive pairing flow with on-screen 6-character PIN code exchange.
 
 ---
@@ -19,8 +19,8 @@ Designed for **100% protocol and feature parity** with [`androidtvremote2`](http
 
 | Port | Transport | Purpose |
 |---|---|---|
-| `6466` | TLS (Polo protocol) | Initial pairing handshake, `OuterMessage` negotiation, and PIN verification. |
-| `6467` | Authenticated TLS | Runtime command injection (`RemoteKeyInject`), text input (`RemoteImeBatchEdit`), app launches (`RemoteAppLinkLaunchRequest`), and session heartbeats. |
+| `6467` | TLS (Polo protocol) | Initial pairing handshake, `OuterMessage` negotiation, and PIN verification. |
+| `6466` | Authenticated TLS | Runtime command injection (`RemoteKeyInject`), text input (`RemoteImeBatchEdit`), app launches (`RemoteAppLinkLaunchRequest`), and session heartbeats. |
 
 ---
 
@@ -30,10 +30,10 @@ Designed for **100% protocol and feature parity** with [`androidtvremote2`](http
 2. In the Harmony-NG WebUI (**Devices Studio**), click **Add Device** and select **Android TV / Google TV (Plugin)**.
 3. Enter your TV's local IP address (e.g. `192.168.1.60`).
 4. Click **Pair with TV** (or send the `Pair` command):
-   - The plugin initiates the pairing handshake on port `6466`.
+   - The plugin initiates the pairing handshake on port `6467`.
    - Your TV screen displays a **6-character PIN code** (e.g. `B83F1A`).
    - Enter the PIN code when prompted in the WebUI.
-5. Once verified, the credentials are saved on the Hub in `/data/harmony/plugins/android-tv/state.txt`. All future commands route through authenticated TLS port `6467`.
+5. Once verified, the credentials are saved on the Hub in `/data/harmony/plugin-data/android-tv/state.txt`. All future commands route through authenticated TLS port `6466`.
 
 ---
 
@@ -99,7 +99,17 @@ You can bind any custom app launcher to a Harmony Activity (such as a "Watch App
 4. Whenever you select the Activity on your Harmony Elite remote or the WebUI, the TV powers on, switches inputs, and automatically opens your designated app!
 
 
-### 4. Sequential Channel Switching (`channel:<digits>`)
+### 4. Connection (`Connect`, `Disconnect`)
+- `Connect` opens the control session and sends no key: the next key goes out at once, without a TLS handshake first. Already connected: nothing changes.
+- `Disconnect` closes the session. Nothing reconnects until the next command.
+
+### 5. Wake-on-LAN (`PowerOn`, `WakeOnLan`)
+- `PowerOn` sends the wake key when the TV answers. When it does not (switched off, or a standby that turns its network off), the plugin sends a Wake-on-LAN packet instead.
+- The MAC address is the device's **MAC Address** field, else the one the plugin learned from the Hub's ARP table the last time it connected to the TV (kept in `/data/harmony/plugin-data/android-tv/mac-<ip>`). Turn the TV on once while the plugin runs, and the field can stay empty.
+- `WakeOnLan` sends the packet only.
+- The TV must have Wake-on-LAN (or "Turn on with Wi-Fi / network") enabled in its settings.
+
+### 6. Sequential Channel Switching (`channel:<digits>`)
 - `channel:104` — Automatically sends `1`, `0`, `4` keycodes sequentially with a 100ms inter-digit delay.
 
 ---

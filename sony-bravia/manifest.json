@@ -1,0 +1,239 @@
+{
+  "id": "sony-bravia",
+  "name": "Sony Bravia TV",
+  "version": "1.0.0",
+  "author": "Harmony-NG Community",
+  "description": "Control Sony Bravia TVs (2013 and later) with their IP control API and a pre-shared key: every remote key, power on and off, HDMI inputs, text, and Wake-on-LAN.",
+  "homepage": "https://github.com/iranl/harmony-ng-plugins/tree/main/sony-bravia",
+  "entrypoint": "bin/sony_bravia",
+  "files": [
+    "manifest.json",
+    "bin/sony_bravia"
+  ],
+  "device_definition": {
+    "device_type": "sonybravia",
+    "display_name": "Sony Bravia TV",
+    "config_fields": [
+      {
+        "key": "host",
+        "label": "IP Address",
+        "type": "string",
+        "placeholder": "192.168.1.90"
+      },
+      {
+        "key": "psk",
+        "label": "Pre-Shared Key (TV: Network > IP control)",
+        "type": "password",
+        "placeholder": "0000"
+      },
+      {
+        "key": "mac",
+        "label": "MAC Address (optional, for Wake-on-LAN)",
+        "type": "string",
+        "placeholder": "learned while the TV is on"
+      }
+    ],
+    "default_commands": [
+      {
+        "name": "PowerOn",
+        "keyCode": "PLUGIN:sony-bravia:PowerOn"
+      },
+      {
+        "name": "PowerOff",
+        "keyCode": "PLUGIN:sony-bravia:PowerOff"
+      },
+      {
+        "name": "PowerToggle",
+        "keyCode": "PLUGIN:sony-bravia:PowerToggle"
+      },
+      {
+        "name": "Home",
+        "keyCode": "PLUGIN:sony-bravia:Home"
+      },
+      {
+        "name": "Back",
+        "keyCode": "PLUGIN:sony-bravia:Back"
+      },
+      {
+        "name": "Select",
+        "keyCode": "PLUGIN:sony-bravia:Select"
+      },
+      {
+        "name": "DirectionUp",
+        "keyCode": "PLUGIN:sony-bravia:Up"
+      },
+      {
+        "name": "DirectionDown",
+        "keyCode": "PLUGIN:sony-bravia:Down"
+      },
+      {
+        "name": "DirectionLeft",
+        "keyCode": "PLUGIN:sony-bravia:Left"
+      },
+      {
+        "name": "DirectionRight",
+        "keyCode": "PLUGIN:sony-bravia:Right"
+      },
+      {
+        "name": "VolumeUp",
+        "keyCode": "PLUGIN:sony-bravia:VolumeUp"
+      },
+      {
+        "name": "VolumeDown",
+        "keyCode": "PLUGIN:sony-bravia:VolumeDown"
+      },
+      {
+        "name": "VolumeMute",
+        "keyCode": "PLUGIN:sony-bravia:VolumeMute"
+      },
+      {
+        "name": "Volume",
+        "keyCode": "PLUGIN:sony-bravia:Volume",
+        "range": [
+          0,
+          100
+        ]
+      },
+      {
+        "name": "ChannelUp",
+        "keyCode": "PLUGIN:sony-bravia:ChannelUp"
+      },
+      {
+        "name": "ChannelDown",
+        "keyCode": "PLUGIN:sony-bravia:ChannelDown"
+      },
+      {
+        "name": "Menu",
+        "keyCode": "PLUGIN:sony-bravia:Menu"
+      },
+      {
+        "name": "Info",
+        "keyCode": "PLUGIN:sony-bravia:Info"
+      },
+      {
+        "name": "Guide",
+        "keyCode": "PLUGIN:sony-bravia:Guide"
+      },
+      {
+        "name": "Play",
+        "keyCode": "PLUGIN:sony-bravia:Play"
+      },
+      {
+        "name": "Pause",
+        "keyCode": "PLUGIN:sony-bravia:Pause"
+      },
+      {
+        "name": "Stop",
+        "keyCode": "PLUGIN:sony-bravia:Stop"
+      },
+      {
+        "name": "FastForward",
+        "keyCode": "PLUGIN:sony-bravia:FastForward"
+      },
+      {
+        "name": "Rewind",
+        "keyCode": "PLUGIN:sony-bravia:Rewind"
+      },
+      {
+        "name": "Record",
+        "keyCode": "PLUGIN:sony-bravia:Record"
+      },
+      {
+        "name": "0",
+        "keyCode": "PLUGIN:sony-bravia:0"
+      },
+      {
+        "name": "1",
+        "keyCode": "PLUGIN:sony-bravia:1"
+      },
+      {
+        "name": "2",
+        "keyCode": "PLUGIN:sony-bravia:2"
+      },
+      {
+        "name": "3",
+        "keyCode": "PLUGIN:sony-bravia:3"
+      },
+      {
+        "name": "4",
+        "keyCode": "PLUGIN:sony-bravia:4"
+      },
+      {
+        "name": "5",
+        "keyCode": "PLUGIN:sony-bravia:5"
+      },
+      {
+        "name": "6",
+        "keyCode": "PLUGIN:sony-bravia:6"
+      },
+      {
+        "name": "7",
+        "keyCode": "PLUGIN:sony-bravia:7"
+      },
+      {
+        "name": "8",
+        "keyCode": "PLUGIN:sony-bravia:8"
+      },
+      {
+        "name": "9",
+        "keyCode": "PLUGIN:sony-bravia:9"
+      },
+      {
+        "name": "Red",
+        "keyCode": "PLUGIN:sony-bravia:Red"
+      },
+      {
+        "name": "Green",
+        "keyCode": "PLUGIN:sony-bravia:Green"
+      },
+      {
+        "name": "Yellow",
+        "keyCode": "PLUGIN:sony-bravia:Yellow"
+      },
+      {
+        "name": "Blue",
+        "keyCode": "PLUGIN:sony-bravia:Blue"
+      },
+      {
+        "name": "Input",
+        "keyCode": "PLUGIN:sony-bravia:Input"
+      },
+      {
+        "name": "HDMI 1",
+        "keyCode": "PLUGIN:sony-bravia:HDMI 1"
+      },
+      {
+        "name": "HDMI 2",
+        "keyCode": "PLUGIN:sony-bravia:HDMI 2"
+      },
+      {
+        "name": "HDMI 3",
+        "keyCode": "PLUGIN:sony-bravia:HDMI 3"
+      },
+      {
+        "name": "HDMI 4",
+        "keyCode": "PLUGIN:sony-bravia:HDMI 4"
+      },
+      {
+        "name": "Exit",
+        "keyCode": "PLUGIN:sony-bravia:Exit"
+      },
+      {
+        "name": "Options",
+        "keyCode": "PLUGIN:sony-bravia:Options"
+      },
+      {
+        "name": "Captions",
+        "keyCode": "PLUGIN:sony-bravia:Captions"
+      },
+      {
+        "name": "Netflix",
+        "keyCode": "PLUGIN:sony-bravia:Netflix"
+      },
+      {
+        "name": "ActionMenu",
+        "keyCode": "PLUGIN:sony-bravia:ActionMenu"
+      }
+    ]
+  }
+}
