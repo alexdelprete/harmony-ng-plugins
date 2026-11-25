@@ -23,9 +23,25 @@ class TV:
             return None
 
 
+# As the real TV: the connect event lists the clients it knows, each with its own token, before
+# the token it issues to this connection (data.token, only when it issues one)
+OTHER = {'attributes': {'name': 'W0hvbWUgQXNzaXN0YW50XSBUZXN0', 'token': '99999999'},
+         'deviceName': 'W0hvbWUgQXNzaXN0YW50XSBUZXN0', 'id': 'other', 'isHost': False}
+
+
+def connect_event(issue):
+    me = {'attributes': {'name': 'SGFybW9ueSBIdWI=', 'token': TOKEN}, 'deviceName': 'SGFybW9ueSBIdWI=', 'id': 'x'}
+    data = {'clients': [OTHER, me], 'id': 'x'}
+    if issue:
+        data['token'] = TOKEN
+    return {'event': 'ms.channel.connect', 'data': data}
+
+
 def on_open(c):
-    if 'token=' + TOKEN in c.path or TV.mode == 'auto':
-        c.send({'event': 'ms.channel.connect', 'data': {'id': 'x', 'token': TOKEN, 'clients': []}})
+    if 'token=' + TOKEN in c.path:
+        c.send(connect_event(False))
+    elif TV.mode == 'auto':
+        c.send(connect_event(True))
     elif TV.mode == 'deny':
         c.send({'event': 'ms.channel.unauthorized'})
     else:
@@ -34,7 +50,7 @@ def on_open(c):
 
 def allow():
     for c in TV.pending:
-        c.send({'event': 'ms.channel.connect', 'data': {'id': 'x', 'token': TOKEN}})
+        c.send(connect_event(True))
     TV.pending.clear()
 
 

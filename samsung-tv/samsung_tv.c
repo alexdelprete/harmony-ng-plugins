@@ -44,6 +44,34 @@ static void pair_end(int ok, const char *msg) {
     s_pair.host[0] = '\0';
 }
 
+/* The token the TV issued to this connection: data.token. Its connect event lists the clients it
+ * knows first, each with its own token ("clients":[{"attributes":{"name":...,"token":...}},...]),
+ * so the first "token" in the message is another client's: the list is skipped. Empty when the
+ * TV issued none (it accepted the token the plugin sent). */
+static void issued_token(const char *msg, char *out, size_t out_sz) {
+    const char *p = strstr(msg, "\"clients\":");
+    if (p) p = strchr(p, '[');
+    if (!p) {
+        plg_json_str(msg, "token", out, out_sz);
+        return;
+    }
+    int depth = 0, in_str = 0;
+    for (; *p; p++) {
+        if (in_str) {
+            if (*p == '\\' && p[1]) p++;
+            else if (*p == '"') in_str = 0;
+        } else if (*p == '"') {
+            in_str = 1;
+        } else if (*p == '[' || *p == '{') {
+            depth++;
+        } else if ((*p == ']' || *p == '}') && --depth == 0) {
+            p++;
+            break;
+        }
+    }
+    plg_json_str(p, "token", out, out_sz);
+}
+
 /* An event from the TV */
 static void on_msg(const char *msg) {
     char event[64];
@@ -51,7 +79,7 @@ static void on_msg(const char *msg) {
     if (strcmp(event, "ms.channel.connect") == 0) {
         s_tv.ready = 1;
         char token[64], path[200];
-        plg_json_str(msg, "token", token, sizeof(token));
+        issued_token(msg, token, sizeof(token));
         if (token[0]) {
             path_for("token", s_tv.host, path, sizeof(path));
             if (plg_write_file(path, token, 0600) == 0) printf("[*] " ID ": token of %s saved\n", s_tv.host);
