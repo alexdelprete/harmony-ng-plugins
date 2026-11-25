@@ -13,6 +13,7 @@ TOKEN = '11223344'
 class TV:
     mode = 'prompt'      # prompt: wait for allow(); deny; auto: connect at once
     power = 'on'
+    model = '19_FAKE_QTV'   # the info page's "model": year prefix (2019)
     msgs = queue.Queue()
     pending = []
 
@@ -61,7 +62,8 @@ def on_text(c, text):
 
 class Rest(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        body = json.dumps({'device': {'PowerState': TV.power, 'name': 'Fake'}}).encode()
+        body = json.dumps({'device': {'PowerState': TV.power, 'name': 'Fake', 'model': TV.model,
+                                      'modelName': 'QE65Q90RATXZT'}}).encode()
         self.send_response(200)
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
@@ -95,6 +97,7 @@ try:
     allow()
     st = p.status()
     check('pairing: done after Allow', st and st['ok'] and st['stage'] == 'done')
+    check('pairing a 2019 TV ticks HDMI via IR', st and st.get('config', {}).get('hdmi_via_ir') is True)
     check('pairing: token saved', open(os.path.join(p.data, 'token-127.0.0.1')).read().strip() == TOKEN)
 
     check('no hub_name from the Hub (older firmware): registered as Harmony-NG Hub',
@@ -196,6 +199,27 @@ try:
     p.send('PowerOn', config=off)
     check('PowerOn on a TV off the network -> Wake-on-LAN',
           wait_for(lambda: p.logged('Wake-on-LAN sent to AA:BB:CC:00:11:22'), 6))
+
+    # an older TV keeps the HDMI keys over the network
+    TV.model = '17_FAKE_UHD'
+    p.clear_status()
+    p.send('pair', 'start_pair', host='127.0.0.1', port=8002, timeout_s=20)
+    time.sleep(0.5)
+    allow()
+    st = p.status()
+    check('pairing a 2017 TV leaves HDMI via IR off', st and st['ok'] and st.get('config', {}).get('hdmi_via_ir') is False)
+    TV.model = '19_FAKE_QTV'
+
+    # the manifest: HDMI 1-4 carry the Samsung IR codes for the Hub, switched by hdmi_via_ir
+    man = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'manifest.json')))
+    dd = man['device_definition']
+    field = next((f for f in dd['config_fields'] if f.get('key') == 'hdmi_via_ir'), None)
+    hdmi = {c['name']: c for c in dd['default_commands'] if c['name'].startswith('HDMI ')}
+    codes = {'HDMI 1': '0xE0E09768', 'HDMI 2': '0xE0E07D82', 'HDMI 3': '0xE0E043BC', 'HDMI 4': '0xE0E0A35C'}
+    check('manifest: HDMI via IR is a checkbox field', field is not None and field.get('type') == 'boolean')
+    check('manifest: HDMI 1-4 carry their IR code and irWhen hdmi_via_ir',
+          all(n in hdmi and hdmi[n].get('irWhen') == 'hdmi_via_ir' and code in hdmi[n].get('irKeyCode', '')
+              for n, code in codes.items()))
 
     TV.mode = 'deny'
     os.unlink(os.path.join(p.data, 'token-127.0.0.1'))

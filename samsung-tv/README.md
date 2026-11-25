@@ -39,6 +39,16 @@ External Device Manager); remove the Hub there to pair again.
 A held remote button holds the key on the TV (`Press`, then `Release`): the TV repeats it
 itself, and the plugin releases it when no repeat or release came for 600 ms.
 
+## HDMI inputs on 2018 and later TVs
+
+Samsung TVs from 2018 on ignore the HDMI 1-4 keys over the network (seen on a 2019 QE65Q90R; the
+other keys work, `HDMI` steps to the next input). For these the Hub sends HDMI 1-4 as infrared,
+Samsung's discrete codes, from its own IR blaster: tick **HDMI via IR** on the device. **Pair
+with TV** ticks it by itself for a TV whose info page reports a 2018 or later model, and leaves
+it off for older ones; save the device afterwards. Needs Hub firmware that sends a plugin
+device's IR alternatives (`irKeyCode`, `irWhen`); older firmware sends HDMI over the network as
+before. The Hub's IR blaster must reach the TV.
+
 ## Wake-on-LAN
 
 Turn on **Settings > General > Network > Expert Settings > Power On with Mobile** (name varies

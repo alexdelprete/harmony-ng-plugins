@@ -46,6 +46,37 @@ static void pair_end(int ok, const char *msg) {
     s_pair.host[0] = '\0';
 }
 
+/* Model year from the TV's info page ("model": "19_MUSEM_QTV" = 2019), 0 when unknown */
+static int model_year(const char *host) {
+    static char body[4096];
+    char model[64] = "";
+    if (plg_http(host, 8001, "GET", "/api/v2/", "", NULL, body, sizeof(body), 1500) == 200) {
+        plg_json_str(body, "model", model, sizeof(model));
+    }
+    if (model[0] < '0' || model[0] > '9' || model[1] < '0' || model[1] > '9' || model[2] != '_') return 0;
+    return 2000 + (model[0] - '0') * 10 + (model[1] - '0');
+}
+
+/* The TV allowed the Hub. TVs from 2018 on ignore the HDMI keys over the network: the pairing
+ * answer ticks "HDMI via IR" for them (the device's HDMI commands then go out as infrared from
+ * the Hub), and leaves it off for older ones; the user saves the device and may change it. */
+static void pair_done(const char *host) {
+    int year = model_year(host);
+    char msg[160];
+    if (year >= 2018) {
+        snprintf(msg, sizeof(msg), "Paired: the TV allowed the Hub. A %d model: HDMI inputs go out as infrared (HDMI via IR)", year);
+        plg_status(ID, 1, "start_pair", "done", msg, "\"hdmi_via_ir\": true");
+    } else if (year > 0) {
+        snprintf(msg, sizeof(msg), "Paired: the TV allowed the Hub (a %d model)", year);
+        plg_status(ID, 1, "start_pair", "done", msg, "\"hdmi_via_ir\": false");
+    } else {
+        snprintf(msg, sizeof(msg), "Paired: the TV allowed the Hub");
+        plg_status(ID, 1, "start_pair", "done", msg, "");
+    }
+    printf("[+] " ID ": %s\n", msg);
+    s_pair.host[0] = '\0';
+}
+
 /* The name as the TV wants it in the query: base64, URL-encoded (as samsungtvws sends it) */
 static void client_name_query(char *out, size_t out_sz) {
     char b64[100];
@@ -114,7 +145,7 @@ static void on_msg(const char *msg) {
         }
         printf("[+] " ID ": connected to %s:%d\n", s_tv.host, s_tv.port);
         wol_learn(s_data, s_tv.host);
-        if (s_pair.host[0] && strcmp(s_pair.host, s_tv.host) == 0) pair_end(1, "Paired: the TV allowed the Hub");
+        if (s_pair.host[0] && strcmp(s_pair.host, s_tv.host) == 0) pair_done(s_tv.host);
     } else if (strcmp(event, "ms.channel.unauthorized") == 0 || strcmp(event, "ms.channel.timeOut") == 0) {
         printf("[-] " ID ": %s refused the Hub (%s): allow it on the TV, or in its Device Connection Manager\n",
                s_tv.host, event);
