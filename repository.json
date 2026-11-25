@@ -18,7 +18,7 @@
         "config_fields": [
           {
             "key": "host",
-            "label": "IP Address",
+            "label": "Hostname / IP Address",
             "type": "string",
             "placeholder": "192.168.1.60"
           },
@@ -296,7 +296,7 @@
         "config_fields": [
           {
             "key": "host",
-            "label": "IP Address",
+            "label": "Hostname / IP Address",
             "type": "string",
             "placeholder": "192.168.1.80"
           },
@@ -588,7 +588,7 @@
         "config_fields": [
           {
             "key": "ip_address",
-            "label": "IP Address",
+            "label": "Hostname / IP Address",
             "type": "string",
             "placeholder": "192.168.1.50"
           },
@@ -682,7 +682,7 @@
         "config_fields": [
           {
             "key": "host",
-            "label": "IP Address",
+            "label": "Hostname / IP Address",
             "type": "string",
             "placeholder": "192.168.1.70"
           },
@@ -942,7 +942,7 @@
         "config_fields": [
           {
             "key": "host",
-            "label": "IP Address",
+            "label": "Hostname / IP Address",
             "type": "string",
             "placeholder": "192.168.1.90"
           },
@@ -1228,7 +1228,7 @@
           },
           {
             "key": "host",
-            "label": "IP Address (optional, for Find MAC)",
+            "label": "Hostname / IP Address (optional, for Find MAC)",
             "type": "string",
             "placeholder": "192.168.1.20"
           },
