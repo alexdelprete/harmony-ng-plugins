@@ -5,8 +5,8 @@ WebSocket. Every remote key, held keys, apps, text, power state, Wake-on-LAN.
 
 ## Setup
 
-1. Device Studio > Add Device > **Samsung Smart TV**. Enter the TV's IP address (give the TV a
-   fixed address in your router).
+1. Device Studio > Add Device > **Samsung Smart TV**. Enter the TV's host name or IP address (give the
+   TV a fixed address or a DNS name in your router).
 2. Press **Pair with TV**, then choose **Allow** on the TV. The TV gives the Hub a token, kept in
    `/data/harmony/plugin-data/samsung-tv/token-<ip>`. Without pairing the TV asks on the first
    command instead.

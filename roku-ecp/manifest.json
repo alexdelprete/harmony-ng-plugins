@@ -14,7 +14,7 @@
     "device_type": "roku",
     "display_name": "Roku Player / TV",
     "config_fields": [
-      { "key": "ip_address", "label": "IP Address", "type": "string", "placeholder": "192.168.1.50" },
+      { "key": "ip_address", "label": "Hostname / IP Address", "type": "string", "placeholder": "192.168.1.50" },
       { "key": "port", "label": "Port", "type": "number", "default": 8060 }
     ],
     "default_commands": [
