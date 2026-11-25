@@ -2,6 +2,7 @@
 """samsung-tv against a fake Samsung TV: wss on 127.0.0.1:8002 (Allow prompt, token), REST on
 8001 (PowerState). Usage: test_fake_samsung.py <samsung_tv binary> <work dir>"""
 import base64, http.server, json, os, queue, sys, threading, time
+from urllib.parse import quote
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts'))
 from fake_ws import FakeWsServer, Plugin, check, failures, wait_for  # noqa: E402
 
@@ -77,6 +78,11 @@ p = Plugin(BIN, WORK, 'samsung-tv')
 cfg = {'host': '127.0.0.1', 'port': 8002, 'mac': 'AA:BB:CC:00:11:22'}
 
 
+def name_q(name):
+    """The client name as the TV wants it in the query: base64, URL-encoded"""
+    return 'name=' + quote(base64.b64encode(name.encode()).decode(), safe='')
+
+
 def key(m):
     return m and m.get('method') == 'ms.remote.control' and (m['params']['Cmd'], m['params']['DataOfCmd'])
 
@@ -90,6 +96,9 @@ try:
     st = p.status()
     check('pairing: done after Allow', st and st['ok'] and st['stage'] == 'done')
     check('pairing: token saved', open(os.path.join(p.data, 'token-127.0.0.1')).read().strip() == TOKEN)
+
+    check('no hub_name from the Hub (older firmware): registered as Harmony-NG Hub',
+          name_q('Harmony-NG Hub') in srv.conns[-1].path)
 
     p.send('Home', config=cfg)
     check('tap Home -> Click KEY_HOME', key(TV.next()) == ('Click', 'KEY_HOME'))
@@ -172,6 +181,15 @@ try:
     p.send('NoSuchKey', config=cfg)
     p.send('KEY_SOURCE', config=cfg)
     check('unknown command skipped, raw KEY_ passes', key(TV.next()) == ('Click', 'KEY_SOURCE'))
+
+    # the Hub's name (settings Hub Name) is the name the TV shows; a rename registers it anew
+    n = len(srv.conns)
+    p.send('Home', config=cfg, hub_name='Harmony Living')
+    m = key(TV.next(4))
+    check('a new Hub name -> a new connection under that name, key delivered',
+          m == ('Click', 'KEY_HOME') and len(srv.conns) == n + 1 and name_q('Harmony Living') in srv.conns[-1].path)
+    p.send('Back', config=cfg, hub_name='Harmony Living')
+    check('the same name again keeps that connection', key(TV.next()) == ('Click', 'KEY_RETURN') and len(srv.conns) == n + 1)
 
     # the TV off the network: PowerOn goes out as Wake-on-LAN
     off = dict(cfg, host='127.0.0.2')

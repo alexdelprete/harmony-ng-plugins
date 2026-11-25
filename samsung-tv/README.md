@@ -12,6 +12,10 @@ WebSocket. Every remote key, held keys, apps, text, power state, Wake-on-LAN.
    command instead.
 3. Port: `8002` (TLS, 2018 and later models: the default), or `8001` for 2016 and 2017 models.
 
+The TV lists the Hub under the Hub's name (**Hub Name** in the Hub's settings; `Harmony-NG Hub`
+on firmware that does not send it). After a rename the TV asks once more to allow it, as a new
+device. Keep **Access Notification** at "First Time Only": the TV then asks once per name.
+
 A TV that was allowed once is listed in its **Device Connection Manager** (Settings > General >
 External Device Manager); remove the Hub there to pair again.
 

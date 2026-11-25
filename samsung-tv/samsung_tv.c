@@ -14,8 +14,10 @@
 #ifndef IDLE_PING_MS
 #define IDLE_PING_MS 20000  /* a send after this long without a frame checks the link first */
 #endif
-/* Base64 of the name the TV shows in its list of allowed devices ("Harmony Hub") */
-#define CLIENT_NAME_B64 "SGFybW9ueSBIdWI="
+/* The name the TV shows in its list of allowed devices: the Hub's name ("hub_name" in every
+ * datagram, the Hub Name in its settings), this on firmware that sends none */
+#define DEFAULT_HUB_NAME "Harmony-NG Hub"
+static char s_hub_name[64] = DEFAULT_HUB_NAME;
 
 static tls_conn_t s_tls;
 static ws_t s_ws = { .fd = -1 };
@@ -42,6 +44,32 @@ static void pair_end(int ok, const char *msg) {
     plg_status(ID, ok, "start_pair", ok ? "done" : "error", msg, "");
     printf("[%c] " ID ": %s\n", ok ? '+' : '-', msg);
     s_pair.host[0] = '\0';
+}
+
+/* The name as the TV wants it in the query: base64, URL-encoded (as samsungtvws sends it) */
+static void client_name_query(char *out, size_t out_sz) {
+    char b64[100];
+    plg_base64((const unsigned char *)s_hub_name, strlen(s_hub_name), b64, sizeof(b64));
+    size_t o = 0;
+    for (const char *c = b64; *c && o + 4 < out_sz; c++) {
+        if (*c == '+' || *c == '/' || *c == '=') o += (size_t)snprintf(out + o, out_sz - o, "%%%02X", (unsigned char)*c);
+        else out[o++] = *c;
+    }
+    out[o] = '\0';
+}
+
+/* The Hub's name of a datagram. A new one closes the connection: the next one registers under it
+ * (the TV sees a new client, asks once, then keeps its token). */
+static void take_hub_name(const char *buf) {
+    char name[64];
+    plg_json_str(buf, "hub_name", name, sizeof(name));
+    if (!name[0]) snprintf(name, sizeof(name), "%s", DEFAULT_HUB_NAME);
+    if (strcmp(name, s_hub_name) == 0) return;
+    snprintf(s_hub_name, sizeof(s_hub_name), "%s", name);
+    if (s_ws.fd >= 0) {
+        printf("[*] " ID ": the Hub is now \"%s\": the TV will ask to allow it once\n", s_hub_name);
+        tv_close();
+    }
 }
 
 /* The token the TV issued to this connection: data.token. Its connect event lists the clients it
@@ -129,7 +157,9 @@ static int tv_connect(const char *host, int port) {
     path_for("token", host, pin, sizeof(pin));
     plg_read_file(pin, token, sizeof(token));
     int secure = port != 8001;
-    snprintf(path, sizeof(path), "/api/v2/channels/samsung.remote.control?name=%s%s%s", CLIENT_NAME_B64,
+    char name_q[160];
+    client_name_query(name_q, sizeof(name_q));
+    snprintf(path, sizeof(path), "/api/v2/channels/samsung.remote.control?name=%s%s%s", name_q,
              secure && token[0] ? "&token=" : "", secure ? token : "");
     path_for("tv", host, pin, sizeof(pin));
     strncat(pin, ".pin", sizeof(pin) - strlen(pin) - 1);
@@ -264,6 +294,7 @@ static void send_text(const char *host, int port, const char *text) {
 static void handle(const char *buf) {
     plg_msg_t m;
     plg_parse(buf, &m);
+    take_hub_name(buf);
     int port = (int)plg_json_int(buf, "port", 8002);
     if (port <= 0 || port > 65535) port = 8002;
 
