@@ -78,6 +78,18 @@ try:
     p.send('Home', config=cfg)
     check('tap Home -> Click KEY_HOME', key(TV.next()) == ('Click', 'KEY_HOME'))
 
+    # the TV pings every ~6 s; the connection must survive it (it used to wait for a next frame
+    # after the pong, ran into the 2 s socket timeout and closed)
+    n = len(srv.conns)
+    for c in srv.open_conns():
+        c.ping()
+    time.sleep(3.0)
+    check('a ping from the TV keeps the connection', len(srv.open_conns()) == 1 and len(srv.conns) == n
+          and not p.logged('the TV closed the connection'))
+    p.send('Info', config=cfg)
+    check('after the ping, the next key goes on the same connection',
+          key(TV.next()) == ('Click', 'KEY_INFO') and len(srv.conns) == n)
+
     p.send('VolumeUp', 'press', config=cfg)
     p.send('VolumeUp', 'repeat', config=cfg)
     p.send('VolumeUp', 'repeat', config=cfg)
