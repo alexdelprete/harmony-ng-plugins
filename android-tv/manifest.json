@@ -30,7 +30,7 @@
     "config_fields": [
       {
         "key": "host",
-        "label": "IP Address",
+        "label": "Hostname / IP Address",
         "type": "string",
         "placeholder": "192.168.1.60"
       },

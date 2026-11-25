@@ -33,7 +33,7 @@
       },
       {
         "key": "host",
-        "label": "IP Address (optional, for Find MAC)",
+        "label": "Hostname / IP Address (optional, for Find MAC)",
         "type": "string",
         "placeholder": "192.168.1.20"
       },
